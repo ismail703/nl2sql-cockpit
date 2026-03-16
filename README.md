@@ -15,7 +15,7 @@ A robust, multi-agent conversational AI system built with LangGraph and FastAPI.
 
 Before you begin, ensure you have the following installed and running:
 
-* **Python 3.10+**
+* **Python 3.11+**
 * **PostgreSQL Server:** Required for LangGraph's conversation checkpointing.
 * **Ollama (Local):** Must be running locally serving the `qwen3-embedding:4b` model for ChromaDB embeddings.
 * **Groq API Key:** Required for the LLM models (`openai/gpt-oss-120b` and `qwen/qwen3-32b`).
@@ -23,7 +23,7 @@ Before you begin, ensure you have the following installed and running:
 ## 🛠️ Project Structure
 
 ```text
-├── main.py                 # FastAPI application and endpoint definitions
+├── main.py                # FastAPI application and endpoint definitions
 ├── analytical_agent.py    # Main orchestrator agent and calculation tools
 ├── text2sql_agent.py      # Sub-agent for Vector DB retrieval and SQL generation/checking
 ├── models.py              # Centralized LLM, ChromaDB, and Database configurations
@@ -44,8 +44,7 @@ Before you begin, ensure you have the following installed and running:
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows use: venv\Scripts\activate
-pip install fastapi uvicorn pydantic langgraph langchain-groq chromadb psycopg2-binary python-dotenv
-
+pip install requirements.txt
 ```
 
 **3. Configure Environment Variables:**
@@ -67,7 +66,7 @@ DB_URI="postgresql://username:password@localhost:5432/your_database_name"
 Start the FastAPI server using Uvicorn:
 
 ```bash
-uvicorn api:app --reload
+fastapi dev main.py --reload
 
 ```
 
