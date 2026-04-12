@@ -3,13 +3,6 @@ from typing import Annotated, TypedDict, List
 from pydantic import BaseModel, Field
 from langgraph.graph import MessagesState
 
-
-class SubQuestionPlan(BaseModel):
-    """Output model for the Planner Node"""
-    sub_questions: List[str] = Field(
-        description="List of simple, individual natural language questions to fetch necessary data."
-    )
-
 class FeedbackEvaluation(BaseModel):
     is_approved: bool = Field(
         description="True if the user approved the task without needing changes. False if they provided corrections, new instructions, or rejected it."
@@ -18,16 +11,27 @@ class FeedbackEvaluation(BaseModel):
         description="The final task description. If approved, return the original. If not approved, rewrite the original task description to incorporate the user's feedback."
     )
 
+class SupervisorState(MessagesState):
+    task_description: str
+    final_result: str
+    data_results: List[dict]
+    analytical_request: str
+
+class AnalyticalRequest(BaseModel):
+    analytical_request: str
+    data: str
 
 class AnalyticalState(TypedDict):
     original_question: str
     sub_questions: List[str]
     data_results: Annotated[List[dict], operator.add]
 
-class SupervisorState(MessagesState):
-    task_description: str
-    final_result: str
-    data_results: List[dict]
+class SubQuestionPlan(BaseModel):
+    """Output model for the Planner Node"""
+    sub_questions: List[str] = Field(
+        description="List of simple, individual natural language questions to fetch necessary data."
+    )
+
 
 # ==========================================
 # Text2SQL Agent States

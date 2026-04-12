@@ -38,6 +38,14 @@ Your sole responsibility is to receive a user's raw analytical request — which
 *Output:* "Perform an analysis comparing the Month-to-Date (MTD) recharge revenue for the '*6' product code between March 2026 and March 2025. The MTD window covers March 1st through March 22nd for both years. Compute the total recharge amount for each period, then derive the absolute variance (2026 minus 2025) and the percentage change relative to the 2025 baseline. Present all three figures: MTD 2025 total, MTD 2026 total, and the YoY delta in both absolute and percentage terms."
 """
 
+ANALYTICAL_REQUEST_GENERATOR_PROMPT = """
+Analyze the provided task description and conversation history to determine which parts of the user's request have already been fulfilled. 
+
+Your objective is to separate the resolved information from the pending work. Populate the 'data' field with a summary of all previously completed analyses, fetched data, and answered questions. Populate the 'analytical_request' field with strictly the remaining, unanswered tasks, entirely excluding anything already addressed. 
+
+CRITICAL CONSTRAINT: If all parts of the user's original request have been completely fulfilled, the 'analytical_request' field MUST be an empty string, and all relevant resolved information must be placed in the 'data' field.
+"""
+
 FEEDBACK_EVALUATOR_PROMPT = """You are a feedback evaluation assistant. 
 Your job is to analyze the user's feedback on a proposed database task.
 1. Determine if the user approved the task (e.g., "looks great", "go ahead") or requested changes.

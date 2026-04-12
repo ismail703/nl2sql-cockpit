@@ -9,11 +9,12 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from models import llm, qwen
 from analytical_agent import AnalyticalAgent
 
-from states import SupervisorState, FeedbackEvaluation
+from states import SupervisorState, FeedbackEvaluation, AnalyticalRequest
 from prompts import (
     TASK_GENERATOR_PROMPT, 
     FEEDBACK_EVALUATOR_PROMPT, 
-    REASONING_PROMPT
+    REASONING_PROMPT,
+    ANALYTICAL_REQUEST_GENERATOR_PROMPT
 )
 
 
@@ -87,11 +88,30 @@ class SupervisorAgent:
             print(f"[INFO] LLM Evaluator: Task updated based on feedback.\nNew Task: {evaluation.updated_task_description}")
             return {"task_description": evaluation.updated_task_description}
 
+    def generate_analytical_request(self, state: SupervisorState):
+        print("\n[INFO] Generating request for Analytical Agent...")
+        
+        structured_llm = llm.with_structured_output(AnalyticalRequest)
+
+        history_msgs = "\n".join([msg.content for msg in state.get('messages', [])])        
+        response = structured_llm.invoke([
+            SystemMessage(content=ANALYTICAL_REQUEST_GENERATOR_PROMPT + "\nMessage History:\n" + history_msgs),
+            HumanMessage(content=state["task_description"])
+        ])
+        
+        # cleaned_content = re.sub(r'<think>.*?</think>', '', response.content, flags=re.DOTALL).strip()
+        # print(f"Generated Analytical Request:\n{response.content}")
+        
+        return {"analytical_request": response.analytical_request, "data_results": [{"question": "", "answer": response.data}]}
+
     def call_analytical_agent_node(self, state: SupervisorState):
         print("\n[INFO] Sending approved task to Text2SQL Agent...")
         
+        if not state.get("analytical_request"):
+            return {"data_results": state["data_results"]}
+
         sub_agent_result = self.analytical_agent.run(
-            original_question=state["task_description"]
+            original_question=state["analytical_request"]
         )
         
         sql_data = sub_agent_result["data_results"]
@@ -122,12 +142,14 @@ class SupervisorAgent:
         workflow.add_node("generate_task", self.generate_task_node)
         workflow.add_node("human_review", self.human_review_node)
         workflow.add_node("call_analytical", self.call_analytical_agent_node)
+        workflow.add_node("generate_analytical_request", self.generate_analytical_request)
         workflow.add_node("reasoning", self.reasoning_and_calc_node)
         workflow.add_node("tools", ToolNode(self.tools))
 
         workflow.add_edge(START, "generate_task")
         workflow.add_edge("generate_task", "human_review")
-        workflow.add_edge("human_review", "call_analytical")
+        workflow.add_edge("human_review", "generate_analytical_request")
+        workflow.add_edge("generate_analytical_request", "call_analytical")
         workflow.add_edge("call_analytical", "reasoning")
         
         workflow.add_conditional_edges(
