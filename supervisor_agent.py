@@ -101,8 +101,10 @@ class SupervisorAgent:
         
         # cleaned_content = re.sub(r'<think>.*?</think>', '', response.content, flags=re.DOTALL).strip()
         # print(f"Generated Analytical Request:\n{response.content}")
+
+        print("Response : ", response.data)
         
-        return {"analytical_request": response.analytical_request, "data_results": [{"question": "", "answer": response.data}]}
+        return {"analytical_request": response.analytical_request, "data_results": [response.data]}
 
     def call_analytical_agent_node(self, state: SupervisorState):
         print("\n[INFO] Sending approved task to Text2SQL Agent...")
@@ -121,7 +123,8 @@ class SupervisorAgent:
         print("\n[INFO] Supervisor performing final reasoning and calculations...")
 
         results_list = state.get("data_results", [])
-        data_context = "\n".join([f"- Q: {item['question']}\n  A: {item['answer']}" for item in results_list])
+        print(f"Data results to reason over: {results_list}")
+        data_context = "\n".join(results_list)
         
         context = (            
             f"Executed Task: {state['task_description']}\n"

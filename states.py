@@ -14,7 +14,7 @@ class FeedbackEvaluation(BaseModel):
 class SupervisorState(MessagesState):
     task_description: str
     final_result: str
-    data_results: List[dict]
+    data_results: List[str]
     analytical_request: str
 
 class AnalyticalRequest(BaseModel):
@@ -24,7 +24,7 @@ class AnalyticalRequest(BaseModel):
 class AnalyticalState(TypedDict):
     original_question: str
     sub_questions: List[str]
-    data_results: Annotated[List[dict], operator.add]
+    data_results: Annotated[List[str], operator.add]
 
 class SubQuestionPlan(BaseModel):
     """Output model for the Planner Node"""
@@ -57,5 +57,4 @@ class AgentState(TypedDict):
     is_sql_modified: bool                            # Flag to trigger the feedback loop
     query_result: str                                # Stores the successful data
     retry_count: int                                 # Safety limit
-    final_output: str  
-    data_results: Annotated[List[dict], operator.add]
+    formatted_result: str

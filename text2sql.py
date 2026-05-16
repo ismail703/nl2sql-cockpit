@@ -259,8 +259,7 @@ class Text2SQL:
             print("Final Answer: ", answer)
 
         return {
-            "final_output": answer,
-            "data_results": [{"question": state["question"], "answer": answer}]
+            "formatted_result": answer
         }      
 
     def create_agent(self):

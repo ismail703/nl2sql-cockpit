@@ -32,10 +32,31 @@ class AnalyticalAgent:
             send_actions.append(Send("text2sql_agent", {"question": q}))
         return send_actions
 
+    def text2sql_agent(self, state: AnalyticalState):
+        """Wrapper that invokes Text2SQL agent and extracts only data_results"""
+        print(f"\n[INFO] Processing question: {state.get('question')}")
+        
+        text2sql_input = {
+            "question": state.get("question"),
+            "vect_queries": {},
+            "db_results": [],
+            "sql_candidate": "",
+            "is_sql_modified": False,
+            "query_result": "",
+            "retry_count": 0,
+            "formatted_result": ""
+        }
+        
+        result = self.sql_agent.agent.invoke(text2sql_input)
+        
+        extracted_data = result.get("formatted_result", "")
+        
+        return {"data_results": [extracted_data]}
+
     def create_workflow(self):
         workflow = StateGraph(AnalyticalState)
         workflow.add_node("plan_queries", self.plan_queries)        
-        workflow.add_node("text2sql_agent", self.sql_agent.agent) 
+        workflow.add_node("text2sql_agent", self.text2sql_agent)
 
         workflow.add_edge(START, "plan_queries")
         workflow.add_conditional_edges("plan_queries", self.dispatch_sub_queries, ["text2sql_agent"])
