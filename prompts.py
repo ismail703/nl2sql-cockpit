@@ -39,11 +39,34 @@ Your sole responsibility is to receive a user's raw analytical request — which
 """
 
 ANALYTICAL_REQUEST_GENERATOR_PROMPT = """
-Analyze the provided task description and conversation history to determine which parts of the user's request have already been fulfilled. 
+Analyze the user's request and the conversation history.
 
-Your objective is to separate the resolved information from the pending work. Populate the 'data' field with a summary of all previously completed analyses, fetched data, and answered questions. Populate the 'analytical_request' field with strictly the remaining, unanswered tasks, entirely excluding anything already addressed. 
+Your job:
+- Extract already answered information
+- Identify unanswered questions
 
-CRITICAL CONSTRAINT: If all parts of the user's original request have been completely fulfilled, the 'analytical_request' field MUST be an empty string, and all relevant resolved information must be placed in the 'data' field.
+Rules:
+- data must contain all resolved information found in the conversation history, as a list of strings.
+- sub_questions must contain only the remaining unanswered questions, as a list of strings.
+- Extract ONLY data strictly relevant to the questions that have been answered. Ignore unrelated data, chatter or background context.
+- Do NOT repeat information already answered.
+- Do NOT add new information.
+- Keep all numbers, percentages, and data values exactly as they appear in the history.
+
+Output format:
+Return ONLY a valid JSON object with:
+- data: list of resolved information from history
+- sub_questions: list of unanswered questions
+
+Special cases:
+- If none of the original request has been answered:
+  sub_questions include all original questions
+  data is an empty list
+- If the original request is fully answered:
+  sub_questions is an empty list
+  data includes all relevant data values from the history
+
+Return only the structured result.
 """
 
 FEEDBACK_EVALUATOR_PROMPT = """You are a feedback evaluation assistant. 

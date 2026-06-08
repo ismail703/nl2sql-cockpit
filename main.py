@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from psycopg_pool import ConnectionPool
 from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.types import Command
+from psycopg.rows import dict_row
 from langchain_core.messages import HumanMessage
 
 from supervisor_agent import SupervisorAgent
@@ -32,7 +33,14 @@ async def lifespan(app: FastAPI):
     global db_pool, supervisor_agent
     
     logger.info("Initializing database pool and Supervisor Agent...")
-    db_pool = ConnectionPool(conninfo=DB_URI)
+    db_pool = ConnectionPool(
+        conninfo=DB_URI,
+        kwargs={
+            "autocommit": True,
+            "row_factory": dict_row,
+            "prepare_threshold": 0,
+        },
+    )
     checkpointer = PostgresSaver(db_pool)
     checkpointer.setup()
     

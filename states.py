@@ -3,6 +3,10 @@ from typing import Annotated, TypedDict, List
 from pydantic import BaseModel, Field
 from langgraph.graph import MessagesState
 
+# ==========================================
+# Supervisor Agent States
+# ==========================================
+
 class FeedbackEvaluation(BaseModel):
     is_approved: bool = Field(
         description="True if the user approved the task without needing changes. False if they provided corrections, new instructions, or rejected it."
@@ -14,17 +18,13 @@ class FeedbackEvaluation(BaseModel):
 class SupervisorState(MessagesState):
     task_description: str
     final_result: str
-    data_results: List[str]
-    analytical_request: str
-
-class AnalyticalRequest(BaseModel):
-    analytical_request: str
-    data: str
-
-class AnalyticalState(TypedDict):
-    original_question: str
     sub_questions: List[str]
     data_results: Annotated[List[str], operator.add]
+    analytical_request: str
+
+class Text2SQLRequests(BaseModel):
+    sub_questions: List[str]
+    data: List[str]
 
 class SubQuestionPlan(BaseModel):
     """Output model for the Planner Node"""
@@ -58,3 +58,4 @@ class AgentState(TypedDict):
     query_result: str                                # Stores the successful data
     retry_count: int                                 # Safety limit
     formatted_result: str
+    data_results: Annotated[List[str], operator.add]
