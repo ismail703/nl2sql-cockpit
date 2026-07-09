@@ -12,7 +12,7 @@ class FeedbackEvaluation(BaseModel):
         description="True if the user approved the task without needing changes. False if they provided corrections, new instructions, or rejected it."
     )
     updated_task_description: str = Field(
-        description="The final task description. If approved, return the original. If not approved, rewrite the original task description to incorporate the user's feedback."
+        description="The final task description. MUST BE PLAIN TEXT ONLY. Do not use markdown, newlines (\\n), or bullet points. Write as a single continuous paragraph. If approved, return the original."
     )
 
 class SupervisorState(MessagesState):
@@ -56,15 +56,14 @@ class AgentState(TypedDict):
     sql_candidate: str                               # Generated SQL Query 
     is_sql_modified: bool                            # Flag to trigger the feedback loop
     query_result: str                                # Stores the successful data
-    retry_count: int                                 # Safety limit
+    syntax_retry: int                                # Safety limit
+    semantic_retry: int
     formatted_result: str
     data_results: Annotated[List[str], operator.add]
 
 class SearchTask(TypedDict):
-    """Payload sent to each parallel search_node invocation via Send."""
     query: str
-    category: str  # "explanation" | "competitor"
-
+    category: str
 
 class SearchFinding(TypedDict):
     category: str
