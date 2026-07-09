@@ -7,11 +7,13 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from dotenv import load_dotenv
 
-from psycopg_pool import ConnectionPool
 from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.types import Command
-from psycopg.rows import dict_row
 from langchain_core.messages import HumanMessage
+from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
+
+from langfuse.langchain import CallbackHandler
 
 from agents.supervisor_agent import SupervisorAgent
 
@@ -91,7 +93,6 @@ async def create_new_chat():
         message="New chat session created successfully"
     )
 
-
 @app.post("/chats/{chat_id}/ask", response_model=ChatResponse, tags=["Agent"])
 async def invoke_agent(
     chat_id: str,
@@ -99,7 +100,11 @@ async def invoke_agent(
     supervisor: SupervisorAgent = Depends(get_supervisor)
 ):
     try:
-        config = {"configurable": {"thread_id": chat_id}}
+        langfuse_handler = CallbackHandler()
+        config = {
+            "configurable": {"thread_id": chat_id},
+            "callbacks": [langfuse_handler]
+        }
 
         current_state = supervisor.agent.get_state(config)
 
