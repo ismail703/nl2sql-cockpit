@@ -59,3 +59,31 @@ class AgentState(TypedDict):
     retry_count: int                                 # Safety limit
     formatted_result: str
     data_results: Annotated[List[str], operator.add]
+
+class SearchTask(TypedDict):
+    """Payload sent to each parallel search_node invocation via Send."""
+    query: str
+    category: str  # "explanation" | "competitor"
+
+
+class SearchFinding(TypedDict):
+    category: str
+    query: str
+    result: str
+
+
+class QueryPlan(BaseModel):
+    explanation_queries: List[str] = Field(
+        description="Queries to research general/behavioral explanations for the finding."
+    )
+    competitor_queries: List[str] = Field(
+        description="Queries to check for related Orange Maroc / Maroc Telecom offers."
+    )
+
+
+class ResearchAgentState(TypedDict):
+    analytical_finding: str
+    queries: List[SearchTask]
+    search_results: Annotated[List[SearchFinding], operator.add]
+    report: str
+

@@ -13,7 +13,7 @@ from langgraph.types import Command
 from psycopg.rows import dict_row
 from langchain_core.messages import HumanMessage
 
-from supervisor_agent import SupervisorAgent
+from agents.supervisor_agent import SupervisorAgent
 
 load_dotenv()
 

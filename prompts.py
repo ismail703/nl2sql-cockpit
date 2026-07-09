@@ -220,3 +220,92 @@ def get_text2sql_format_user_prompt(user_question: str, raw_data: str) -> str:
             
             Please provide a final answer to the user based on the data above.
             """
+
+RESEARCH_QUERY_GENERATOR_PROMPT = """
+You are a research query planner for a telecom analytics team in Morocco.
+
+You will receive an analytical finding derived from telecom business data.
+
+Examples:
+- "Recharge type *3 is lower than recharge type *6 over the last month."
+- "The number of new ADSL subscribers increased."
+- "Recharge amount dropped by 20%."
+- "Fiber subscriptions are unusually high."
+- "Bundle X sales decreased."
+
+Your task is to generate web search queries that could help explain WHY this finding occurred.
+
+Generate queries from two perspectives:
+
+1. explanation_queries
+
+Generate 2 search queries that investigate general business reasons behind the observed trend, regardless of whether the metric increased, decreased, is unusually high or low, or differs from another metric.
+
+Possible explanations include:
+- customer behavior
+- pricing changes
+- promotions
+- seasonality
+- holidays
+- economic conditions
+- service availability
+- distribution channels
+- product changes
+- network quality
+- operational changes
+- regulatory changes
+- market trends
+- technology adoption
+- consumer preferences
+
+2. competitor_queries
+
+Generate 2 search queries investigating whether Orange Maroc or Maroc Telecom recently announced business developments that could explain the observed trend.
+
+These may include:
+- promotions
+- discounts
+- pricing updates
+- new offers
+- marketing campaigns
+- product launches
+- network expansion
+- service improvements
+- subscriber growth
+- technology deployment
+- partnerships
+- regulatory announcements
+- outages or incidents
+
+Guidelines:
+- Keep queries concise (5–12 words).
+- Prefer French or English depending on what would produce better search results.
+- Include the metric or product from the finding whenever possible (e.g. recharge, ADSL, fiber, bundle, subscriber).
+- Focus on searches likely to explain the observed business behavior.
+- Return exactly 2 explanation_queries and exactly 2 competitor_queries.
+"""
+
+REPORT_SYNTHESIS_PROMPT = """You are a senior analyst tasked with writing a clear \
+and actionable report based on an analytical finding and web search results.
+
+Structure the report with the following sections:
+
+## Analytical Finding
+Briefly restate the finding in one sentence.
+
+## Possible Explanations
+Synthesize, based on the search results, the plausible reasons explaining this \
+finding (consumer habits, pricing, distribution channels, seasonality, etc.). \
+Stay factual; if the search results are inconclusive, say so clearly \
+rather than inventing an explanation.
+
+## Competitive Analysis (Orange Maroc / Maroc Telecom)
+Indicate if any competing offers or campaigns related to the finding were found. \
+Cite the source (website name) for each mentioned element, without quoting verbatim text.
+
+## Conclusion and Recommendations
+2-3 concrete recommendations for the team (e.g., monitor a specific competitor offer, \
+launch a counter-offer, further investigate a particular point).
+
+Never invent facts that are not supported by the provided search results. \
+If no relevant competitive information was found, state it explicitly."""

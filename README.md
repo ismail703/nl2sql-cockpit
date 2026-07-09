@@ -65,6 +65,22 @@ This design preserves modularity (specialized Text2SQL agent) while providing a 
 - **Persistence**: PostgreSQL checkpointer (LangGraph) for conversation state; SQLite for query execution; ChromaDB for RAG retrieval.
 - **Tools**: Small analytic utilities (e.g., `calculate_percentage`, `compare_periods`) made available to the LLM during final reasoning.
 
+## 🧩 Supervisor Schema
+
+The supervisor writes its schema snapshot to [assets/supervisor_agent_schema.json](assets/supervisor_agent_schema.json) when it initializes. The snapshot captures the `SupervisorState` fields, the structured output models used by the planner and review nodes, the available calculation tools, and the workflow node list.
+
+```mermaid
+flowchart TD
+  A[SupervisorAgent] --> B[SupervisorState]
+  A --> C[FeedbackEvaluation]
+  A --> D[SubQuestionPlan]
+  A --> E[Text2SQLRequests]
+  A --> F[Tool Set\ncalculate_percentage\ncompare_periods]
+  A --> G[Workflow Nodes]
+  A --> H[assets/supervisor_agent_schema.json]
+  H --> I[README documentation]
+```
+
 ## ⚠️ Known Setup Caveats
 
 - The Postgres-based checkpointer runs migrations at startup which may include `CREATE INDEX CONCURRENTLY`. That SQL cannot run inside a transaction block and may fail under some pool/driver configurations. If you see errors about `CREATE INDEX CONCURRENTLY cannot run inside a transaction block`:

@@ -1,13 +1,15 @@
 import re
+from pathlib import Path
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Send, interrupt
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.checkpoint.postgres import PostgresSaver
 from langchain_core.tools import tool
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
-from models import llm, qwen
-from text2sql import Text2SQL
+from models import llm, qwen, llama
+from agents.text2sql import Text2SQL
+from agents.research_agent import ResearchAgent
 
 from states import SubQuestionPlan, SupervisorState, FeedbackEvaluation, Text2SQLRequests
 from prompts import (
@@ -17,6 +19,15 @@ from prompts import (
     REASONING_PROMPT,
     ANALYTICAL_REQUEST_GENERATOR_PROMPT
 )
+
+ASSETS_DIR = Path(__file__).resolve().parent / "assets"
+SUPERVISOR_SCHEMA_IMAGE_PATH = ASSETS_DIR / "supervisor_agent_schema.png"
+
+
+def export_supervisor_schema_image(agent) -> None:
+    ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    img_bytes = agent.get_graph(xray=1).draw_mermaid_png()
+    SUPERVISOR_SCHEMA_IMAGE_PATH.write_bytes(img_bytes)
 
 
 @tool
@@ -46,16 +57,18 @@ def compare_periods(current_value: float, previous_value: float) -> str:
 class SupervisorAgent:
     def __init__(self, checkpointer: PostgresSaver = None):        
         self.sql_agent = Text2SQL()         
+        self.research_agent = ResearchAgent()
         self.tools = [calculate_percentage, compare_periods]
         self.llm_with_tools = llm.bind_tools(self.tools)
         self.agent = self.create_workflow(checkpointer)
+        export_supervisor_schema_image(self.agent)
 
     def generate_task_node(self, state: SupervisorState):        
         print("\n[INFO] Supervisor generating task description...")
         user_input = state["messages"][-1].content                
 
         # history_msgs = "\n".join([msg.content for msg in state.get('messages', [])])        
-        response = qwen.invoke([
+        response = llama.invoke([
             SystemMessage(content=TASK_GENERATOR_PROMPT),# + "\nMessage History:\n" + history_msgs),
             HumanMessage(content=user_input)
         ])
@@ -75,7 +88,7 @@ class SupervisorAgent:
         })
 
         print(f"\n[INFO] Received user feedback: {user_feedback}")
-        evaluator = llm.with_structured_output(FeedbackEvaluation)
+        evaluator = llama.with_structured_output(FeedbackEvaluation)
         
         user_prompt = f"""
         Original Task Description: {state['task_description']}
@@ -112,6 +125,9 @@ class SupervisorAgent:
             Text2SQLRequests,
             method="json_mode"
         )
+
+        with open("conversation_history.txt", "w", encoding="utf-8") as f:
+            f.write(str(state.get('messages', [])))
 
         current_sub_questions = state.get("sub_questions", [])
         history_msgs = "\n".join([msg.content for msg in state.get('messages', [])])        
@@ -162,6 +178,12 @@ class SupervisorAgent:
         
         return {"messages": [response]}
 
+    def research_node(self, state: SupervisorState):
+        print("\n Handing off final finding to Research Agent...")
+        finding = state["messages"][-1].content
+        report = self.research_agent.run(finding)
+        return {"messages": [AIMessage(content=report)]}
+
     def create_workflow(self, checkpointer):
         workflow = StateGraph(SupervisorState)
 
@@ -171,6 +193,7 @@ class SupervisorAgent:
         workflow.add_node("check_conversation_hist", self.check_conversation_hist)
         workflow.add_node("text2sql_agent", self.sql_agent.agent) 
         workflow.add_node("reasoning", self.reasoning_and_calc_node)
+        workflow.add_node("research", self.research_node)
         workflow.add_node("tools", ToolNode(self.tools))
 
         workflow.add_edge(START, "generate_task")
@@ -183,8 +206,9 @@ class SupervisorAgent:
         workflow.add_conditional_edges(
             "reasoning", 
             tools_condition, 
-            {"tools": "tools", "__end__": END}
+            {"tools": "tools", "__end__": 'research'}
         )
         workflow.add_edge("tools", "reasoning")
+        workflow.add_edge("research", END)
 
         return workflow.compile(checkpointer=checkpointer)
