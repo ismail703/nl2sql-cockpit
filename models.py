@@ -23,12 +23,6 @@ llm = ChatGroq(
     temperature=0, 
 )
 
-gpt20 = ChatGroq(
-    model="openai/gpt-oss-20b",
-    groq_api_key=api_key,
-    temperature=0.1, 
-)
-
 qwen = ChatGroq(
     model="qwen/qwen3-32b",
     groq_api_key=api_key,

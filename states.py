@@ -1,5 +1,5 @@
 import operator
-from typing import Annotated, TypedDict, List
+from typing import Annotated, TypedDict, List, Optional
 from pydantic import BaseModel, Field
 from langgraph.graph import MessagesState
 
@@ -21,6 +21,8 @@ class SupervisorState(MessagesState):
     sub_questions: List[str]
     data_results: Annotated[List[str], operator.add]
     analytical_request: str
+    memory_context: Optional[str]
+    correction_notes: Optional[str]
 
 class Text2SQLRequests(BaseModel):
     sub_questions: List[str]
@@ -60,6 +62,10 @@ class AgentState(TypedDict):
     semantic_retry: int
     formatted_result: str
     data_results: Annotated[List[str], operator.add]
+
+# ==========================================
+# Research Agent States
+# ==========================================
 
 class SearchTask(TypedDict):
     query: str

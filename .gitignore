@@ -1,3 +1,5 @@
 .env
 .vscode/
 __pycache__/
+memory_vector_db/
+chroma_db_store/

@@ -1,4 +1,5 @@
 import re
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Send, interrupt
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -7,6 +8,7 @@ from langchain_core.tools import tool
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from models import llm, qwen, llama
+
 from agents.text2sql import Text2SQL
 from agents.research_agent import ResearchAgent
 
@@ -16,8 +18,11 @@ from prompts import (
     TASK_GENERATOR_PROMPT, 
     FEEDBACK_EVALUATOR_PROMPT, 
     REASONING_PROMPT,
-    ANALYTICAL_REQUEST_GENERATOR_PROMPT
+    ANALYTICAL_REQUEST_GENERATOR_PROMPT,
+    LESSON_EXTRACTOR_PROMPT,
 )
+
+from memory_store import LongTermMemory
 
 
 @tool
@@ -48,17 +53,38 @@ class SupervisorAgent:
     def __init__(self, checkpointer: PostgresSaver = None):        
         self.sql_agent = Text2SQL()         
         self.research_agent = ResearchAgent()
+        self.memory = LongTermMemory()
         self.tools = [calculate_percentage, compare_periods]
         self.llm_with_tools = llm.bind_tools(self.tools)
         self.agent = self.create_workflow(checkpointer)
 
+    def recall_memory_node(self, state: SupervisorState):
+        print("\n[INFO] Recalling relevant lessons...")
+        user_input = state["messages"][-1].content
+        memory_context = self.memory.recall(user_input, k=3)
+
+        if memory_context:
+            print(f"[INFO] Recalled lessons:\n{memory_context}")
+        else:
+            print("[INFO] No relevant lessons found.")
+
+        return {"memory_context": memory_context}
+
     def generate_task_node(self, state: SupervisorState):        
         print("\n[INFO] Supervisor generating task description...")
-        user_input = state["messages"][-1].content                
+        user_input = state["messages"][-1].content
+        memory_context = state.get("memory_context", "")
 
-        # history_msgs = "\n".join([msg.content for msg in state.get('messages', [])])        
+        system_content = TASK_GENERATOR_PROMPT
+        if memory_context:
+            system_content += (
+                "\n\nLessons learned from past tasks (apply only if genuinely relevant, "
+                "do not force a connection if there isn't one):\n"
+                f"{memory_context}"
+            )
+
         response = llama.invoke([
-            SystemMessage(content=TASK_GENERATOR_PROMPT),# + "\nMessage History:\n" + history_msgs),
+            SystemMessage(content=system_content),
             HumanMessage(content=user_input)
         ])
         
@@ -94,8 +120,16 @@ class SupervisorAgent:
             return {"task_description": state["task_description"]}
         else:
             print(f"[INFO] LLM Evaluator: Task updated based on feedback.\nNew Task: {evaluation.updated_task_description}")
-            return {"task_description": evaluation.updated_task_description}
-    
+            correction_notes = (
+                f"Original interpretation: {state['task_description']}\n"
+                f"User feedback: {user_feedback}\n"
+                f"Corrected interpretation: {evaluation.updated_task_description}"
+            )
+            return {
+                "task_description": evaluation.updated_task_description,
+                "correction_notes": correction_notes,
+            }   
+         
     def plan_queries(self, state: SupervisorState):
         print(f"\n[INFO] Planning sub-queries ....")
         structured_planner = qwen.with_structured_output(SubQuestionPlan)
@@ -107,7 +141,41 @@ class SupervisorAgent:
         
         print(f"  -> Generated {len(plan.sub_questions)} sub-questions: {plan.sub_questions}")
         return {"sub_questions": plan.sub_questions}
-    
+
+    def store_memory_node(self, state: SupervisorState, config: RunnableConfig):
+        print("\n[INFO] Extracting lesson for long-term memory...")
+
+        task_description = state.get("task_description", "")
+        final_answer = state["messages"][-1].content if state.get("messages") else ""
+        correction_notes = state.get("correction_notes", "")
+        chat_id = config.get("configurable", {}).get("thread_id")
+
+        extraction_input = f"Task: {task_description}\nFinal Answer: {final_answer}"
+        if correction_notes:
+            extraction_input += f"\n\nHuman correction that occurred during this task:\n{correction_notes}"
+
+        try:
+            response = llama.invoke([
+                SystemMessage(content=LESSON_EXTRACTOR_PROMPT),
+                HumanMessage(content=extraction_input)
+            ])
+            lesson = re.sub(r'<think>.*?</think>', '', response.content, flags=re.DOTALL).strip()
+
+            if lesson and lesson.upper() != "NONE":
+                entry_id = self.memory.add_lesson(
+                    lesson=lesson,
+                    task_description=task_description,
+                    chat_id=chat_id,
+                    had_correction=bool(correction_notes),
+                )
+                print(f"[INFO] Lesson stored: {entry_id} -> {lesson}")
+            else:
+                print("[INFO] No lesson worth storing for this task.")
+        except Exception as e:
+            print(f"[WARN] Failed to extract/store lesson: {e}")
+
+        return {}
+
     def check_conversation_hist(self, state: SupervisorState):
         print("\n[INFO] Checking conversation history...")        
         structured_llm = llm.with_structured_output(
@@ -123,6 +191,7 @@ class SupervisorAgent:
         ])
 
         print("Response : ", response.data)
+        print("Sub questions: ", response.sub_questions)
         
         return {"sub_questions": response.sub_questions, "data_results": response.data}      
     
@@ -173,6 +242,7 @@ class SupervisorAgent:
     def create_workflow(self, checkpointer):
         workflow = StateGraph(SupervisorState)
 
+        workflow.add_node("recall_memory", self.recall_memory_node)
         workflow.add_node("generate_task", self.generate_task_node)
         workflow.add_node("human_review", self.human_review_node)
         workflow.add_node("plan_queries", self.plan_queries)
@@ -181,8 +251,10 @@ class SupervisorAgent:
         workflow.add_node("reasoning", self.reasoning_and_calc_node)
         workflow.add_node("research", self.research_node)
         workflow.add_node("tools", ToolNode(self.tools))
+        workflow.add_node("store_memory", self.store_memory_node)
 
-        workflow.add_edge(START, "generate_task")
+        workflow.add_edge(START, "recall_memory")
+        workflow.add_edge("recall_memory", "generate_task")
         workflow.add_edge("generate_task", "human_review")
         workflow.add_edge("human_review", "plan_queries")
         workflow.add_edge("plan_queries", "check_conversation_hist")       
@@ -195,6 +267,7 @@ class SupervisorAgent:
             {"tools": "tools", "__end__": 'research'}
         )
         workflow.add_edge("tools", "reasoning")
-        workflow.add_edge("research", END)
+        workflow.add_edge("research", "store_memory")
+        workflow.add_edge("store_memory", END)
 
         return workflow.compile(checkpointer=checkpointer)

@@ -15,7 +15,7 @@ from prompts import (
     get_text2sql_format_user_prompt
 )
 from models import (
-    llm, qwen, llama, gpt20, DB_PATH, coll_schema, coll_examples, coll_evidence, coll_values
+    llm, qwen, llama, DB_PATH, coll_schema, coll_examples, coll_evidence, coll_values
 )
 
 class Text2SQL:
@@ -217,7 +217,7 @@ class Text2SQL:
                 print("   [Fail] Max semantic retries reached.")
                 return {
                     "is_sql_modified": False,
-                    "query_result": f"Error: Semantic logic failed after 2 attempts. Last reasoning: {result.reasoning}",
+                    # "query_result": f"Error: Semantic logic failed after 2 attempts. Last reasoning: {result.reasoning}",
                     "semantic_retry": 0,
                 }
             

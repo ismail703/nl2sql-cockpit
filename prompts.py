@@ -35,7 +35,7 @@ Your sole responsibility is to receive a user's raw analytical request — which
 
 *User request:* "give me Year-over-Year MTD Comparison for '*6' Recharges for this month"
 
-*Output:* "Perform an analysis comparing the Month-to-Date (MTD) recharge revenue for the '*6' product code between March 2026 and March 2025. The MTD window covers March 1st through March 22nd for both years. Compute the total recharge amount for each period, then derive the absolute variance (2026 minus 2025) and the percentage change relative to the 2025 baseline. Present all three figures: MTD 2025 total, MTD 2026 total, and the YoY delta in both absolute and percentage terms."
+*Output:* "Analyze Month-to-Date (MTD) recharge revenue for '*6' Recharges, comparing March 1–22, 2025 against March 1–22, 2026.. Compute the total recharge amount for each period, then derive the absolute variance (2026 minus 2025) and the percentage change relative to the 2025 baseline."
 """
 
 ANALYTICAL_REQUEST_GENERATOR_PROMPT = """
@@ -73,7 +73,15 @@ FEEDBACK_EVALUATOR_PROMPT = """You are a feedback evaluation assistant.
 Your job is to analyze the user's feedback on a proposed database task.
 1. Determine if the user approved the task (e.g., "looks great", "go ahead") or requested changes.
 2. If they requested changes, rewrite the original task description to seamlessly incorporate their feedback.
-3. If they approved it as-is, return the original task description."""
+3. If they approved it as-is, return the original task description.
+
+CRITICAL INSTRUCTION:
+You must return your response in valid JSON format. 
+The JSON must contain two keys:
+1. "is_approved": true or false
+2. "updated_task_description": A plain text string (NO markdown, NO newlines) containing the final task description.
+"""
+
 
 REASONING_PROMPT = """You are an expert Telecom Data Analyst. Carefully extract all relevant numeric values from the provided Fetched Data.
 If the requested metric requires additional computation, use the available tools to perform the necessary calculations. Only call a tool when a calculation is strictly required.
@@ -91,8 +99,8 @@ TEXT2SQL_DECOMPOSITION_SYSTEM_PROMPT = """
         1. Schema Query:
             Goal: Identify relevant tables and columns identifiers for Schema Alignment.
             Action: 
-                Extract nouns that look like database objects (e.g., "active customer", "bill", "Recharge", "data"). 
-                Identify entities that would logically represent a table or a specific column name in a telecom database.
+                Extract nouns that look like database objects.
+                Identify entities that would logically represent a table or a specific column name in a telecom database (e.g., "active customer", "bill", "Recharge", "data", "Revenu). 
                 Extract words that can be used to describe the table
 
         2. Knowledge Query
@@ -184,6 +192,10 @@ def get_text2sql_semantic_system_prompt(full_context: str) -> str:
         - If the query is logically sound, return it as is.
         - If any logic is flawed, provide the corrected version in the 'corrected_sql' field.
         
+        CRITICAL INSTRUCTION: 
+        - You must strictly use the provided function/tool to format your output.
+        - Do not include any conversational text, pleasantries, or plain text outside of the tool call.        
+        
         USE THE CONTEXT BELOW (Schema, Examples, Values, and Evidence):
         {full_context}
         """
@@ -221,6 +233,26 @@ def get_text2sql_format_user_prompt(user_question: str, raw_data: str) -> str:
             Please provide a final answer to the user based on the data above.
             """
 
+LESSON_EXTRACTOR_PROMPT = """
+
+You are the memory module of an analytical agent. Your job is to extract concise, reusable lessons from a completed task — something that will help the agent handle similar requests better next time.
+
+Focus on:
+
+- Domain-specific facts learned (e.g., correct table/column to use, correct definition of a metric, date-range conventions)
+
+- Corrections the user made to the agent's initial understanding (if any)
+
+- Pitfalls or ambiguities that came up and how they were resolved
+
+Do NOT summarize the conversation. Do NOT restate the final answer's numbers.
+
+Write ONE short, generalizable statement (1-3 sentences) that would help with a FUTURE, possibly different, but related request.
+
+If there is genuinely nothing worth remembering (task was trivial, no ambiguity, no correction), respond with exactly: NONE.
+
+"""
+
 RESEARCH_QUERY_GENERATOR_PROMPT = """
 You are a research query planner for a telecom analytics team in Morocco.
 
@@ -257,6 +289,7 @@ Possible explanations include:
 - market trends
 - technology adoption
 - consumer preferences
+- etc...
 
 2. competitor_queries
 
@@ -276,6 +309,7 @@ These may include:
 - partnerships
 - regulatory announcements
 - outages or incidents
+- etc...
 
 Guidelines:
 - Keep queries concise (5–12 words).
