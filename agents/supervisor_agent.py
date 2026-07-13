@@ -14,11 +14,10 @@ from agents.research_agent import ResearchAgent
 
 from states import SubQuestionPlan, SupervisorState, FeedbackEvaluation, Text2SQLRequests
 from prompts import (
-    ANALYTICAL_PLANNER_PROMPT,
+    ANALYTICAL_PLANNER_AND_CHECKER_PROMPT,
     TASK_GENERATOR_PROMPT, 
     FEEDBACK_EVALUATOR_PROMPT, 
     REASONING_PROMPT,
-    ANALYTICAL_REQUEST_GENERATOR_PROMPT,
     LESSON_EXTRACTOR_PROMPT,
 )
 
@@ -61,7 +60,7 @@ class SupervisorAgent:
     def recall_memory_node(self, state: SupervisorState):
         print("\n[INFO] Recalling relevant lessons...")
         user_input = state["messages"][-1].content
-        memory_context = self.memory.recall(user_input, k=3)
+        memory_context = self.memory.recall(user_input, k=2)
 
         if memory_context:
             print(f"[INFO] Recalled lessons:\n{memory_context}")
@@ -130,71 +129,25 @@ class SupervisorAgent:
                 "correction_notes": correction_notes,
             }   
          
-    def plan_queries(self, state: SupervisorState):
-        print(f"\n[INFO] Planning sub-queries ....")
-        structured_planner = qwen.with_structured_output(SubQuestionPlan)
+    def plan_and_check_queries(self, state: SupervisorState):
+        print("\n[INFO] Planning sub-queries and checking conversation history...")
         
-        plan = structured_planner.invoke([
-            SystemMessage(content=ANALYTICAL_PLANNER_PROMPT),
-            HumanMessage(content=state['task_description'])
-        ])
-        
-        print(f"  -> Generated {len(plan.sub_questions)} sub-questions: {plan.sub_questions}")
-        return {"sub_questions": plan.sub_questions}
-
-    def store_memory_node(self, state: SupervisorState, config: RunnableConfig):
-        print("\n[INFO] Extracting lesson for long-term memory...")
-
-        task_description = state.get("task_description", "")
-        final_answer = state["messages"][-1].content if state.get("messages") else ""
-        correction_notes = state.get("correction_notes", "")
-        chat_id = config.get("configurable", {}).get("thread_id")
-
-        extraction_input = f"Task: {task_description}\nFinal Answer: {final_answer}"
-        if correction_notes:
-            extraction_input += f"\n\nHuman correction that occurred during this task:\n{correction_notes}"
-
-        try:
-            response = llama.invoke([
-                SystemMessage(content=LESSON_EXTRACTOR_PROMPT),
-                HumanMessage(content=extraction_input)
-            ])
-            lesson = re.sub(r'<think>.*?</think>', '', response.content, flags=re.DOTALL).strip()
-
-            if lesson and lesson.upper() != "NONE":
-                entry_id = self.memory.add_lesson(
-                    lesson=lesson,
-                    task_description=task_description,
-                    chat_id=chat_id,
-                    had_correction=bool(correction_notes),
-                )
-                print(f"[INFO] Lesson stored: {entry_id} -> {lesson}")
-            else:
-                print("[INFO] No lesson worth storing for this task.")
-        except Exception as e:
-            print(f"[WARN] Failed to extract/store lesson: {e}")
-
-        return {}
-
-    def check_conversation_hist(self, state: SupervisorState):
-        print("\n[INFO] Checking conversation history...")        
         structured_llm = llm.with_structured_output(
             Text2SQLRequests,
             method="json_mode"
         )
 
-        current_sub_questions = state.get("sub_questions", [])
-        history_msgs = "\n".join([msg.content for msg in state.get('messages', [])])        
+        history_msgs = "\n".join([msg.content for msg in state.get('messages', [])])
+
         response = structured_llm.invoke([
-            SystemMessage(content=ANALYTICAL_REQUEST_GENERATOR_PROMPT + "\nMessage History:\n" + history_msgs),
-            HumanMessage(content=" ".join(current_sub_questions))
+            SystemMessage(content=ANALYTICAL_PLANNER_AND_CHECKER_PROMPT + "\nConversation History:\n" + history_msgs),
+            HumanMessage(content=state['task_description'])
         ])
 
-        print("Response : ", response.data)
-        print("Sub questions: ", response.sub_questions)
-        
-        return {"sub_questions": response.sub_questions, "data_results": response.data}      
-    
+        print(f"  -> Resolved data: {response.data}")
+        print(f"  -> Remaining sub-questions: {response.sub_questions}")
+
+        return {"sub_questions": response.sub_questions, "data_results": response.data}   
     def dispatch_sub_queries(self, state: SupervisorState):
             sub_questions = state.get("sub_questions", [])
             
@@ -206,8 +159,7 @@ class SupervisorAgent:
                 return send_actions
             else:
                 print("\n[INFO] No sub-queries to dispatch. Routing straight to reasoning...")
-                return "reasoning"   
-
+                return "reasoning"            
     def reasoning_and_calc_node(self, state: SupervisorState):
         print("\n[INFO] Supervisor performing final reasoning and calculations...")
 
@@ -232,6 +184,37 @@ class SupervisorAgent:
             print(f"\n[DEBUG] LLM Final Answer: {response.content}")
         
         return {"messages": [response]}
+    def store_memory_node(self, state: SupervisorState, config: RunnableConfig):
+        print("\n[INFO] Extracting lesson for long-term memory...")
+
+        task_description = state.get("task_description", "")
+        final_answer = state["messages"][-1].content if state.get("messages") else ""
+        correction_notes = state.get("correction_notes", "")
+        chat_id = config.get("configurable", {}).get("thread_id")
+
+        extraction_input = f""
+        if correction_notes:
+            extraction_input += f"\n\nHuman feedback for this task:\n{correction_notes}"
+
+        try:
+            response = llama.invoke([
+                SystemMessage(content=LESSON_EXTRACTOR_PROMPT),
+                HumanMessage(content=extraction_input)
+            ])
+            lesson = re.sub(r'<think>.*?</think>', '', response.content, flags=re.DOTALL).strip()
+
+            if lesson and lesson.upper() != "NONE":
+                entry_id = self.memory.add_lesson(
+                    lesson=lesson,
+                    chat_id=chat_id,
+                )
+                print(f"[INFO] Lesson stored: {entry_id} -> {lesson}")
+            else:
+                print("[INFO] No lesson worth storing for this task.")
+        except Exception as e:
+            print(f"[WARN] Failed to extract/store lesson: {e}")
+
+        return {}
 
     def research_node(self, state: SupervisorState):
         print("\n Handing off final finding to Research Agent...")
@@ -245,8 +228,7 @@ class SupervisorAgent:
         workflow.add_node("recall_memory", self.recall_memory_node)
         workflow.add_node("generate_task", self.generate_task_node)
         workflow.add_node("human_review", self.human_review_node)
-        workflow.add_node("plan_queries", self.plan_queries)
-        workflow.add_node("check_conversation_hist", self.check_conversation_hist)
+        workflow.add_node("plan_queries", self.plan_and_check_queries)
         workflow.add_node("text2sql_agent", self.sql_agent.agent) 
         workflow.add_node("reasoning", self.reasoning_and_calc_node)
         workflow.add_node("research", self.research_node)
@@ -256,9 +238,8 @@ class SupervisorAgent:
         workflow.add_edge(START, "recall_memory")
         workflow.add_edge("recall_memory", "generate_task")
         workflow.add_edge("generate_task", "human_review")
-        workflow.add_edge("human_review", "plan_queries")
-        workflow.add_edge("plan_queries", "check_conversation_hist")       
-        workflow.add_conditional_edges("check_conversation_hist", self.dispatch_sub_queries, ["text2sql_agent", "reasoning"])
+        workflow.add_edge("human_review", "plan_queries")   
+        workflow.add_conditional_edges("plan_queries", self.dispatch_sub_queries, ["text2sql_agent", "reasoning"])
         workflow.add_edge("text2sql_agent", "reasoning")    
         
         workflow.add_conditional_edges(

@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 import chromadb
 from models import ollama_ef
 
-MEMORY_JSON_PATH = "long_term_memory.json"
+MEMORY_JSON_PATH = "agent_memory.json"
 MEMORY_VECTOR_DIR = "./memory_vector_db"
 
 class LongTermMemory:
@@ -48,9 +48,7 @@ class LongTermMemory:
     def add_lesson(
         self,
         lesson: str,
-        task_description: str,
         chat_id: Optional[str] = None,
-        had_correction: bool = False,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         data = self._load()
