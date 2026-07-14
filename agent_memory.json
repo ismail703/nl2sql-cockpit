@@ -1,20 +1,8 @@
 [
   {
     "id": "1",
-    "lesson": "Translate recharge codes (e.g., “*6”) to their specific product names such as “Social Media Recharge” before performing any metric calculations.",
-    "chat_id": "zwpeopvbnj875433",
-    "timestamp": "2026-07-14T09:56:17.895447+00:00"
-  },
-  {
-    "id": "2",
-    "lesson": "Map recharge codes to their specific service categories (e.g., code *3 refers to the internet service) when defining product scope.",
-    "chat_id": "zwpeopvbnj875433",
-    "timestamp": "2026-07-14T10:07:48.591270+00:00"
-  },
-  {
-    "id": "3",
-    "lesson": "Map recharge codes to their specific service categories (e.g., code *3 refers to the internet service) when defining product scope.",
-    "chat_id": "zwpeopvbnj875433",
-    "timestamp": "2026-07-14T10:14:44.613470+00:00"
+    "lesson": "When calculating cash actually collected (money received in the bank), use the encaissement table.",
+    "chat_id": "bnsaqwrtyooi889r84",
+    "timestamp": "2026-07-14T15:08:14.067674+00:00"
   }
 ]

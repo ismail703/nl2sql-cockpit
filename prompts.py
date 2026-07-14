@@ -230,24 +230,24 @@ def get_text2sql_format_user_prompt(user_question: str, raw_data: str) -> str:
 
 LESSON_EXTRACTOR_PROMPT = """
 You are the memory module of an analytical agent. Your job is to read user \
-feedback or notes and extract a concise, reusable lesson that will help the \
+feedback or notes and extract a concise, reusable insights that will help the \
 agent handle similar requests better in the future.
 
-Focus exclusively on:
-- Domain-specific facts learned (e.g., correct table/column usage, metric \
-definitions, date-range conventions)
-- Corrections the user made to the agent's initial approach
-- Pitfalls or ambiguities that arose and how they were resolved
+Store only stable facts relevant to SQL generation, such as:
+- SQL style preferences (formatting, aliasing, join style)
+- Schema conventions (which table/column to use, and when)
+- Naming rules and business metric definitions
+- SQL dialect quirks
+- Recurring corrections to the agent's SQL or query logic
 
-Constraints:
-- Base the lesson strictly on what is stated in the feedback. Do not infer or \
-generalize beyond it.
-- Do not quote the user's words verbatim — rephrase into a standalone, reusable rule.
-- If the feedback contains more than one distinct lesson, combine them into a \
-single statement only if closely related; otherwise keep only the most important one.
-- No conversational filler (e.g., "The lesson learned is...", "Note that...").
-- No preamble, no explanation of your reasoning — output only the final statement, \
-nothing else.
+Do not store:
+- praise, thanks, or small talk,
+- task-irrelevant details,
+- one-off facts with no future value,
+- speculative or uncertain information,
+- sensitive personal data,
+- multiple memories when one is enough.
+
 
 Output format:
 One short, generalizable statement (1-2 sentences).
@@ -259,14 +259,14 @@ with exactly: NONE.
 Examples:
 Feedback: "The revenue numbers should always exclude test accounts, I had to point \
 that out twice."
-Lesson: When computing revenue metrics, always exclude test accounts by default.
+memory: When computing revenue metrics, always exclude test accounts by default.
 
 Feedback: "That's exactly what I needed, thanks!"
-Lesson: NONE
+memory: NONE
 
 Feedback: "You used 'active_users' but for MTD comparisons we mean 'active_users_30d', \
 not the daily table."
-Lesson: For MTD (month-to-date) comparisons, use the 'active_users_30d' definition, \
+memory: For MTD (month-to-date) comparisons, use the 'active_users_30d' definition, \
 not the daily active users table.
 """
 

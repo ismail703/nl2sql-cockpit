@@ -143,6 +143,7 @@ class SupervisorAgent:
         print(f"  -> Remaining sub-questions: {response.sub_questions}")
 
         return {"sub_questions": response.sub_questions, "data_results": response.data}   
+    
     def dispatch_sub_queries(self, state: SupervisorState):
             sub_questions = state.get("sub_questions", [])
             
@@ -154,7 +155,8 @@ class SupervisorAgent:
                 return send_actions
             else:
                 print("\n[INFO] No sub-queries to dispatch. Routing straight to reasoning...")
-                return "reasoning"            
+                return "reasoning"  
+                      
     def reasoning_and_calc_node(self, state: SupervisorState):
         print("\n[INFO] Supervisor performing final reasoning and calculations...")
 
@@ -179,6 +181,7 @@ class SupervisorAgent:
             print(f"\n[DEBUG] LLM Final Answer: {response.content}")
         
         return {"messages": [response]}
+    
     def store_memory_node(self, state: SupervisorState, config: RunnableConfig):
         print("\n[INFO] Extracting lesson for long-term memory...")
 
@@ -187,7 +190,7 @@ class SupervisorAgent:
 
         extraction_input = f""
         if correction_notes:
-            extraction_input += f"\n\nHuman feedback for this task:\n{correction_notes}"
+            extraction_input += f"\n\nHuman feedback:\n{correction_notes}"
 
         try:
             response = llm.invoke([
