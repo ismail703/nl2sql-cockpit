@@ -119,14 +119,9 @@ class SupervisorAgent:
             return {"task_description": state["task_description"]}
         else:
             print(f"[INFO] LLM Evaluator: Task updated based on feedback.\nNew Task: {evaluation.updated_task_description}")
-            correction_notes = (
-                f"Original interpretation: {state['task_description']}\n"
-                f"User feedback: {user_feedback}\n"
-                f"Corrected interpretation: {evaluation.updated_task_description}"
-            )
             return {
                 "task_description": evaluation.updated_task_description,
-                "correction_notes": correction_notes,
+                "correction_notes": user_feedback,
             }   
          
     def plan_and_check_queries(self, state: SupervisorState):
@@ -187,8 +182,6 @@ class SupervisorAgent:
     def store_memory_node(self, state: SupervisorState, config: RunnableConfig):
         print("\n[INFO] Extracting lesson for long-term memory...")
 
-        task_description = state.get("task_description", "")
-        final_answer = state["messages"][-1].content if state.get("messages") else ""
         correction_notes = state.get("correction_notes", "")
         chat_id = config.get("configurable", {}).get("thread_id")
 
@@ -197,7 +190,7 @@ class SupervisorAgent:
             extraction_input += f"\n\nHuman feedback for this task:\n{correction_notes}"
 
         try:
-            response = llama.invoke([
+            response = llm.invoke([
                 SystemMessage(content=LESSON_EXTRACTOR_PROMPT),
                 HumanMessage(content=extraction_input)
             ])

@@ -12,44 +12,68 @@ The application is organized around a supervisor-first workflow:
 
 The response flow keeps SQL work focused while allowing the supervisor to combine database results, calculations, and research into a single answer.
 
-## Langfuse Tracing
+## Retrieval Data Flow
 
-Langfuse is used to trace each chat turn and track the agent workflow across requests. In `main.py`, the FastAPI request handler creates a Langfuse callback handler so the supervisor and its LangGraph execution can be observed in Langfuse.
+The project uses Qdrant as the vector database. The retrieval scripts read source data from the `context` folder, create Qdrant collections, and populate them with embeddings.
 
-Recommended usage:
+The JSON files that feed the retrieval pipeline should be placed in `context/`:
 
-- Set Langfuse credentials in `.env` before starting the app.
-- Keep the Langfuse callback attached to the request lifecycle so each `chat_id` stays traceable as a session.
-- Use descriptive trace and session names, and avoid logging sensitive prompt or database values.
+- `context/db_schema.json`
+- `context/db_values.json`
+- `context/evidence.json`
+- `context/question-example.json`
 
-If Langfuse is configured correctly, you can inspect the full chat turn, nested agent steps, and any human-review pauses from the Langfuse UI.
+Keep these files in the `context` folder so the scripts in `retrieve/` can load them without changing paths.
+
+## Qdrant Setup
+
+Run Qdrant locally in Docker before populating the vector collections:
+
+```bash
+docker volume create qdrant_storage
+docker pull qdrant/qdrant
+docker run -d --name qdrant -p 6333:6333 -p 6334:6334 -v qdrant_storage:/qdrant/storage --restart unless-stopped qdrant/qdrant
+```
+
+The application connects to Qdrant on `localhost:6333`.
+
+## Retrieve Folder
+
+The `retrieve/` folder contains the indexing scripts that build the Qdrant collections used by the app:
+
+- `store_db_schema.py` indexes the database schema from `context/db_schema.json`.
+- `store_category_db.py` indexes distinct column values from `context/db_values.json`.
+- `store_evidence.py` indexes domain evidence from `context/evidence.json`.
+- `store_examples.py` indexes few-shot question and SQL examples from `context/question-example.json`.
+
+Run these scripts directly as modules after Qdrant is running and the JSON files are in place.
+
+Example:
+
+```bash
+python -m retrieve.store_category_db
+python -m retrieve.store_db_schema
+python -m retrieve.store_evidence
+python -m retrieve.store_examples
+```
 
 ## Project Structure
 
 ```text
 main.py                  # FastAPI app and request lifecycle
-models.py                # LLM, embeddings, and database configuration
+models.py                # LLM, embeddings, and Qdrant configuration
 prompts.py               # Prompt templates used by the agents
 states.py                # LangGraph state definitions
 agents/
   supervisor_agent.py    # Main orchestrator and reasoning flow
   text2sql.py            # SQL generation and execution agent
   research_agent.py      # External research and report synthesis agent
+retrieve/                # Qdrant indexing scripts for schema, values, evidence, and examples
+context/                 # JSON source files used to populate Qdrant collections
 assets/                  # Static assets and local storage
-chroma_db_store/         # Local ChromaDB vector store
 requirements.txt         # Python dependencies
 README.md                # Project documentation
 ```
-
-## Research Agent
-
-The `ResearchAgent` is a follow-up agent used after the supervisor produces an analytical finding. Its role is to:
-
-1. Generate targeted research queries from the finding.
-2. Search the web with Tavily for explanatory and competitor context.
-3. Merge the retrieved evidence into a short report.
-
-This is useful when the database answer needs additional market or product context before presenting the final response.
 
 ## Environment Configuration
 
@@ -64,7 +88,6 @@ TAVILY_API_KEY=your_tavily_api_key_here
 LANGFUSE_PUBLIC_KEY=pk-lf-...
 LANGFUSE_SECRET_KEY=sk-lf-...
 LANGFUSE_HOST=https://cloud.langfuse.com
-
 ```
 
 Notes:
@@ -78,8 +101,11 @@ Notes:
 
 1. Create and activate a Python environment.
 2. Install dependencies with `pip install -r requirements.txt`.
-3. Start PostgreSQL and any other local services used by your setup.
-4. Start the API with `fastapi dev main.py --reload`.
+3. Start Qdrant with the Docker commands above.
+4. Make sure the JSON files are present in `context/`.
+5. Run the retrieval scripts in `retrieve/` to populate Qdrant.
+6. Start PostgreSQL and any other local services used by your setup.
+7. Start the API with `fastapi dev main.py --reload`.
 
 ## API
 
@@ -100,4 +126,4 @@ curl -X POST http://127.0.0.1:8000/chats/<chat_id>/ask -H "Content-Type: applica
 - The supervisor workflow supports human review pauses before querying the database.
 - The PostgreSQL checkpointer keeps conversation state aligned with the `chat_id` thread.
 - Langfuse is the recommended place to inspect execution traces when debugging agent behavior.
-- When a sub-query returns an empty result (`"No result generated"`), inspect the vector DB retrieval steps in `text2sql.py` to ensure ChromaDB collections are populated and embedding service is reachable.
+- If a sub-query returns an empty result, verify that Qdrant is running, the retrieval scripts have been executed, and the JSON files in `context/` contain the expected data.

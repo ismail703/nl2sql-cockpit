@@ -1,32 +1,20 @@
 [
   {
-    "id": "fb1",
-    "lesson": "When analyzing FTTH-related metrics, ensure to use the correct KPI name (\"DELAIS RESOLUTION FTTH\") and its associated metric (\"Count of DELAIS RESOLUTION FTTH KPIs resolved under 4 hours\") to accurately reflect the desired analysis.",
-    "chat_id": "opohfbnccxx9087654",
-    "timestamp": "2026-07-13T13:28:08.991388+00:00"
+    "id": "1",
+    "lesson": "Translate recharge codes (e.g., “*6”) to their specific product names such as “Social Media Recharge” before performing any metric calculations.",
+    "chat_id": "zwpeopvbnj875433",
+    "timestamp": "2026-07-14T09:56:17.895447+00:00"
   },
   {
-    "id": "fb2",
-    "lesson": "When interpreting tasks involving date ranges, it's essential to consider the specific number of days in each month to ensure accurate filtering and aggregation of data.",
-    "chat_id": "jjuhhyvbnj875433",
-    "timestamp": "2026-07-13T14:21:18.835182+00:00"
+    "id": "2",
+    "lesson": "Map recharge codes to their specific service categories (e.g., code *3 refers to the internet service) when defining product scope.",
+    "chat_id": "zwpeopvbnj875433",
+    "timestamp": "2026-07-14T10:07:48.591270+00:00"
   },
   {
-    "id": "fb3",
-    "lesson": "When analyzing data for specific time periods, it is essential to consider the availability and accuracy of the data, ensuring that the metrics and assumptions are well-defined and aligned with the actual data.",
-    "chat_id": "jjuhhyvbnj875433",
-    "timestamp": "2026-07-13T14:23:13.201078+00:00"
-  },
-  {
-    "id": "fb4",
-    "lesson": "Lors de l'analyse de données de réclamations résolues, il est essentiel de prendre en compte les définitions spécifiques de métriques et de critères de chutage, tels que le nombre d'appels/sms reçus par le client en 3 mois, pour fournir des résultats précis et complets.",
-    "chat_id": "jjuhhyvbnj875433",
-    "timestamp": "2026-07-13T14:30:11.410528+00:00"
-  },
-  {
-    "id": "fb5",
-    "lesson": "When analyzing revenue for a specific product code, ensure to map the identifier to the correct product name, such as 'internet services' in this case.",
-    "chat_id": "zweeyvbnj875433",
-    "timestamp": "2026-07-13T14:48:03.583383+00:00"
+    "id": "3",
+    "lesson": "Map recharge codes to their specific service categories (e.g., code *3 refers to the internet service) when defining product scope.",
+    "chat_id": "zwpeopvbnj875433",
+    "timestamp": "2026-07-14T10:14:44.613470+00:00"
   }
 ]

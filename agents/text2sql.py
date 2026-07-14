@@ -15,12 +15,14 @@ from prompts import (
     get_text2sql_format_user_prompt
 )
 from models import (
-    llm, qwen, llama, DB_PATH, coll_schema, coll_examples, coll_evidence, coll_values
+    llm, qwen, llama, DB_PATH, client, get_embedding
 )
 
 class Text2SQL:
     def __init__(self):
         self.agent = self.create_agent()
+        self.client = client
+      
     
     def generate_vect_db_query(self, state: AgentState):
         print(f"  [INFO] Generating Vector DB Queries... ")
@@ -52,39 +54,43 @@ class Text2SQL:
 
         res_schema = []
         for q_text in queries['schema']:
-            results = coll_schema.query(query_texts=[q_text], n_results=1)
+            query_vector = get_embedding(q_text)
             
-            if results['documents'] and results['documents'][0]:
-                doc_content = "\n".join(results['documents'][0])
-                res_schema.append(doc_content)
+            response = self.client.query_points(
+                collection_name="telco_db_schema",
+                query=query_vector,
+                limit=1
+            )
+            
+            if response.points:
+                doc_content = response.points[0].payload.get("document", "")
+                if doc_content.strip():
+                    res_schema.append(doc_content)
         
         final_schema = "\n---\n".join(list(set(res_schema)))
         return {"db_results": [final_schema]}
-
+   
     def retrieve_examples(self, state: AgentState):
         queries = state['vect_queries']
-        print(f"  [INFO] Retrieving Examples...")
+        search_term = queries.get("example", state['question'])
+        if isinstance(search_term, list): search_term = search_term[0]
 
-        search_terms = queries.get("example", state['question'])
-        if isinstance(search_terms, list):
-            search_term = search_terms[0]
-        else:
-            search_term = search_terms
-
-        res_examples = coll_examples.query(query_texts=[search_term], n_results=2)
+        query_vector = get_embedding(search_term)
+        response = self.client.query_points(
+            collection_name="sql_few_shot_examples",
+            query=query_vector,
+            limit=2
+        )
         
         examples_list = []
-        if res_examples['metadatas'] and res_examples['metadatas'][0]:
-            for meta, doc_text in zip(res_examples['metadatas'][0], res_examples['documents'][0]):
-                sql_code = meta.get('query', 'No SQL found')
-                examples_list.append(f"Question: {doc_text}\nSQL: {sql_code}")
+        for point in response.points:
+            doc_text = point.payload.get('document', 'No question found')
+            sql_code = point.payload.get('query', 'No SQL found')
+            examples_list.append(f"Question: {doc_text}\nSQL: {sql_code}")
 
-        examples_txt = "\n---\n".join(examples_list)
-        if not examples_txt:
-            examples_txt = "No relevant SQL examples found."
-
+        examples_txt = "\n---\n".join(examples_list) if examples_list else "No examples found."
         return {"db_results": [examples_txt]}
-
+   
     def retrieve_evidence(self, state: AgentState):
         queries = state['vect_queries']
         print(f"  [INFO] Retrieving Evidence...")
@@ -93,10 +99,17 @@ class Text2SQL:
         unique_docs = set()
         
         for term in search_terms:
-            res_evidence = coll_evidence.query(query_texts=[term], n_results=3)
-            if res_evidence['documents'] and res_evidence['documents'][0]:
-                for doc in res_evidence['documents'][0]:
-                    unique_docs.add(doc)
+            query_vector = get_embedding(term)
+
+            response = self.client.query_points(
+                collection_name="telco_domain_evidence",
+                query=query_vector,
+                limit=3
+            )
+            
+            for point in response.points:
+                if point.payload and "document" in point.payload:
+                    unique_docs.add(point.payload["document"])
 
         evidence_txt = "\n\n".join(list(unique_docs))
         return {"db_results": [evidence_txt]}
@@ -109,10 +122,17 @@ class Text2SQL:
         unique_value_mappings = set()
         
         for term in search_terms:
-            res_values = coll_values.query(query_texts=[term], n_results=6)
+            query_vector = get_embedding(term)
 
-            if res_values.get('metadatas') and res_values['metadatas'][0]:
-                for meta in res_values['metadatas'][0]:
+            response = self.client.query_points(
+                collection_name="telco_distinct_values",
+                query=query_vector,
+                limit=6
+            )
+
+            for point in response.points:
+                meta = point.payload
+                if meta:
                     val = meta.get('value', 'Unknown')
                     col = meta.get('column_name', 'Unknown')
                     tbl = meta.get('table_name', 'Unknown')
