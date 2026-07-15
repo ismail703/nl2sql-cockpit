@@ -1,5 +1,5 @@
 import operator
-from typing import Annotated, TypedDict, List, Optional
+from typing import Annotated, TypedDict, List, Optional, Literal
 from pydantic import BaseModel, Field
 from langgraph.graph import MessagesState
 
@@ -7,12 +7,40 @@ from langgraph.graph import MessagesState
 # Supervisor Agent States
 # ==========================================
 
+class RouteDecision(BaseModel):
+    route: Literal["feedback", "analytical", "unrelated"] = Field(
+        description=(
+            "Classify the user's latest message: "
+            "'feedback' if it's a correction, note, remark, or comment about a past answer; "
+            "'analytical' if it's a data/insight/SQL request; "
+            "'unrelated' if it's a greeting, small talk, or anything not tied to data or feedback."
+        )
+    )
+
 class FeedbackEvaluation(BaseModel):
     is_approved: bool = Field(
         description="True if the user approved the task without needing changes. False if they provided corrections, new instructions, or rejected it."
     )
     updated_task_description: str = Field(
         description="The final task description. MUST BE PLAIN TEXT ONLY. Do not use markdown, newlines (\\n), or bullet points. Write as a single continuous paragraph. If approved, return the original."
+    )
+
+class MemoryReconciliation(BaseModel):
+    action: Literal["add", "update", "delete", "skip"] = Field(
+        description=(
+            "'add' if this is genuinely new knowledge with no close match; "
+            "'update' if it refines/corrects an existing similar lesson (merge into it); "
+            "'delete' if it explicitly invalidates/contradicts an existing lesson and nothing should replace it; "
+            "'skip' if it's a duplicate or near-duplicate of an existing lesson with no new information."
+        )
+    )
+    target_id: Optional[str] = Field(
+        default=None,
+        description="ID of the existing lesson to update or delete. Required for 'update' and 'delete', null otherwise."
+    )
+    final_lesson: Optional[str] = Field(
+        default=None,
+        description="The lesson text to store, for 'add' or 'update'. Null for 'delete' or 'skip'."
     )
 
 class SupervisorState(MessagesState):
@@ -23,17 +51,11 @@ class SupervisorState(MessagesState):
     analytical_request: str
     memory_context: Optional[str]
     correction_notes: Optional[str]
+    route_decision: Optional[RouteDecision]
 
 class Text2SQLRequests(BaseModel):
     sub_questions: List[str]
     data: List[str]
-
-class SubQuestionPlan(BaseModel):
-    """Output model for the Planner Node"""
-    sub_questions: List[str] = Field(
-        description="List of simple, individual natural language questions to fetch necessary data."
-    )
-
 
 # ==========================================
 # Text2SQL Agent States

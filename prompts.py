@@ -47,23 +47,27 @@ TASK_GENERATOR_PROMPT = """
 Your sole responsibility is to receive a user's raw analytical request — which may be vague, incomplete, or informally worded — and transform it into a precise, unambiguous, and fully detailed analysis description that another agent or analyst can execute without needing clarification.
 
 **Your output must:**
-- Clearly define the **objective** of the analysis
-- Specify the **exact metric(s)** to be computed (e.g., revenue, count, variance)
-- Identify the **data scope** — filters, segments, or dimensions involved (e.g., product codes, channels, regions)
-- Define the **time period(s)** explicitly, including exact dates based on today's date where needed
-- Indicate the **output format** — what figures, comparisons, or breakdowns should be returned (e.g., absolute value, percentage change, YoY delta)
-- Resolve any **implicit assumptions** (e.g., "this month" → March 1–22, 2026; "last year" → same period in 2025)
+- Clearly define the objective of the analysis
+- Specify the exact metric(s) to be computed (e.g., revenue, count, variance)
+- Identify the data scope — filters, segments, or dimensions involved (e.g., product codes, channels, regions)
+- Define the time period(s) explicitly, including exact dates based on today's date where needed
+- Indicate the output format — what figures, comparisons, or breakdowns should be returned (e.g., absolute value, percentage change, YoY delta)
+- Resolve any implicit assumptions (e.g., "this month" → March 2026; "last year" → 2025)
 
 **You do not perform the analysis yourself.** Your only output is a precise, complete description of the analysis to be executed — written clearly enough for an analytical agent to action it without further clarification, and for a human to review and verify before execution.
 **Refer to the message history to fully contextualize the user's current request**
 
-**Example:**
+**Examples:**
 
 *User request:* "give me Year-over-Year MTD Comparison for '*6' Recharges for this month"
 
-*Output:* "Analyze Month-to-Date (MTD) recharge revenue for '*6' Recharges, comparing March 1–22, 2025 against March 1–22, 2026.. Compute the total recharge amount for each period, then derive the absolute variance (2026 minus 2025) and the percentage change relative to the 2025 baseline."
-"""
+*Output:* "Analyze Month-to-Date (MTD) recharge revenue for '*6' Recharges, comparing March 1–22, 2025 against March 1–22, 2026. Compute the total recharge amount for each period, then derive the absolute variance and the percentage change relative to the 2025 baseline."
 
+*User request:* "give me the total count of B2C active customers using ADSL for December 2025 and compare it to the same period in 2024"
+
+*Output:* "Found the total count of active B2C customers using ADSL for December 2025, and compare it to December 2024. Compute the absolute difference and the percentage change between the two years."
+
+"""
 FEEDBACK_EVALUATOR_PROMPT = """You are a feedback evaluation assistant. 
 Your job is to analyze the user's feedback on a proposed database task.
 1. Determine if the user approved the task (e.g., "looks great", "go ahead") or requested changes.
@@ -252,14 +256,14 @@ Do not store:
 Output format:
 One short, generalizable statement (1-2 sentences).
 
-If the feedback contains nothing worth remembering — e.g., it's praise, small talk, \
+If the feedback contains nothing worth remembering — e.g., it's praise, \
 task-irrelevant, or the task was trivial with no ambiguity or correction — respond \
 with exactly: NONE.
 
 Examples:
 Feedback: "The revenue numbers should always exclude test accounts, I had to point \
 that out twice."
-memory: When computing revenue metrics, always exclude test accounts by default.
+memory: The revenue numbers should always exclude test accounts.
 
 Feedback: "That's exactly what I needed, thanks!"
 memory: NONE
@@ -269,6 +273,39 @@ not the daily table."
 memory: For MTD (month-to-date) comparisons, use the 'active_users_30d' definition, \
 not the daily active users table.
 """
+
+MEMORY_RECONCILER_PROMPT = """You maintain a long-term memory of lessons/business rules for a Text-to-SQL assistant.
+
+You'll be given:
+- A NEW candidate lesson just extracted from user feedback.
+- A list of EXISTING lessons already stored, each with an id, that are semantically similar to the new one.
+
+Decide what to do:
+- "add": the new lesson is genuinely new information, not meaningfully covered by any existing lesson.
+- "update": the new lesson refines, extends, or corrects one existing lesson. Merge them into
+  one clear, consolidated lesson and return it in final_lesson, with target_id set to that lesson's id.
+- "delete": the new lesson explicitly says something existing is wrong/no longer true, and there's
+  nothing to replace it with. Set target_id, leave final_lesson null.
+- "skip": the new lesson says essentially the same thing as an existing one already does. No action needed.
+
+If the EXISTING lessons list is empty, always choose "add".
+Only merge into ONE existing lesson at most — pick the closest match if several are similar.
+Prefer "update" over "add" whenever there's real overlap, to avoid duplicate/near-duplicate entries."""
+
+ENTRY_ROUTER_PROMPT = """You are the entry router for a Text-to-SQL analytics assistant.
+Classify the user's message into exactly one category:
+
+- "feedback": the user is giving a correction, note, remark, or comment about a previous
+  answer or the assistant's behavior; OR the user is stating a definition, business rule,
+  or domain knowledge that should be remembered for future queries — even if not phrased
+  as an explicit correction (e.g. "the last query was wrong", "note that revenue means net
+  revenue", "Recharge par canal is a KPI that categorizes recharges by channel").
+- "analytical": the user is asking a question that requires querying data, computing
+  metrics, or getting an insight (e.g. "what was the churn rate last month?", "compare Q1 vs Q2 recharges").
+- "unrelated": greetings, small talk, or anything not tied to data or feedback
+  (e.g. "hi", "how can you help me?", "n'importe quoi").
+
+Only classify — do not answer the question itself."""
 
 RESEARCH_QUERY_GENERATOR_PROMPT = """
 You are a research query planner for a telecom analytics team in Morocco.

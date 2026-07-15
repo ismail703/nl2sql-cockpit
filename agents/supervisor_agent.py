@@ -1,3 +1,4 @@
+from datetime import datetime
 import re
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, START, END
@@ -7,18 +8,20 @@ from langgraph.checkpoint.postgres import PostgresSaver
 from langchain_core.tools import tool
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
-from models import llm, qwen, llama
+from models import llm, llama
 
 from agents.text2sql import Text2SQL
 from agents.research_agent import ResearchAgent
 
-from states import SubQuestionPlan, SupervisorState, FeedbackEvaluation, Text2SQLRequests
-from prompts import (
+from states import SupervisorState, FeedbackEvaluation, Text2SQLRequests, RouteDecision, MemoryReconciliation
+from prompts import ( 
     ANALYTICAL_PLANNER_AND_CHECKER_PROMPT,
-    TASK_GENERATOR_PROMPT, 
-    FEEDBACK_EVALUATOR_PROMPT, 
+    TASK_GENERATOR_PROMPT,
+    FEEDBACK_EVALUATOR_PROMPT,
     REASONING_PROMPT,
     LESSON_EXTRACTOR_PROMPT,
+    ENTRY_ROUTER_PROMPT,
+    MEMORY_RECONCILER_PROMPT
 )
 
 from memory_store import LongTermMemory
@@ -57,10 +60,48 @@ class SupervisorAgent:
         self.llm_with_tools = llm.bind_tools(self.tools)
         self.agent = self.create_workflow(checkpointer)
 
+    def entry_router_node(self, state: SupervisorState):
+        print("\n[INFO] Routing incoming message...")
+        user_input = state["messages"][-1].content
+
+        router = llm.with_structured_output(RouteDecision)
+        decision = router.invoke([
+            SystemMessage(content=ENTRY_ROUTER_PROMPT),
+            HumanMessage(content=user_input)
+        ])
+
+        print(f"[INFO] Router decision: {decision.route}")
+
+        result = {"route_decision": decision.route}
+
+        if decision.route == "feedback":
+            result["correction_notes"] = user_input
+
+        return result
+
+    def route_entry(self, state: SupervisorState):
+        decision = state.get("route_decision")
+        if decision == "feedback":
+            return "store_memory"
+        elif decision == "analytical":
+            return "recall_memory"
+        else:
+            return "greeting"
+
+    def greeting_node(self, state: SupervisorState):
+        print("\n[INFO] Message unrelated to data/feedback — responding directly...")
+        intro = (
+            "Hello! I am your inwi assistant for data analysis and insights. "
+            "I can query the database to answer your analytical questions (metrics, period comparisons, top-up trends, etc.), "
+            "and I also take your feedback into account to improve my future responses."
+            " Feel free to ask me a question about your data, or to point out a correction."
+        )
+        return {"messages": [AIMessage(content=intro)]}
+
     def recall_memory_node(self, state: SupervisorState):
         print("\n[INFO] Recalling relevant lessons...")
         user_input = state["messages"][-1].content
-        memory_context = self.memory.recall(user_input, k=2)
+        memory_context = self.memory.recall(user_input, k=3)
 
         if memory_context:
             print(f"[INFO] Recalled lessons:\n{memory_context}")
@@ -74,11 +115,10 @@ class SupervisorAgent:
         user_input = state["messages"][-1].content
         memory_context = state.get("memory_context", "")
 
-        system_content = TASK_GENERATOR_PROMPT
+        system_content = TASK_GENERATOR_PROMPT.format(current_date=datetime.now().strftime("%B %d, %Y"))
         if memory_context:
             system_content += (
-                "\n\nLessons learned from past tasks (apply only if genuinely relevant, "
-                "do not force a connection if there isn't one):\n"
+                "\n\nPrevious user feedback and lessons learned to consider (apply only if genuinely relevant and related to the task; do not force a connection):\n"
                 f"{memory_context}"
             )
 
@@ -188,27 +228,55 @@ class SupervisorAgent:
         correction_notes = state.get("correction_notes", "")
         chat_id = config.get("configurable", {}).get("thread_id")
 
-        extraction_input = f""
-        if correction_notes:
-            extraction_input += f"\n\nHuman feedback:\n{correction_notes}"
+        if not correction_notes:
+            print("[INFO] No feedback to process.")
+            return {}
+
+        extraction_input = f"\n\nHuman feedback:\n{correction_notes}"
 
         try:
             response = llm.invoke([
                 SystemMessage(content=LESSON_EXTRACTOR_PROMPT),
                 HumanMessage(content=extraction_input)
             ])
-            lesson = re.sub(r'<think>.*?</think>', '', response.content, flags=re.DOTALL).strip()
+            candidate_lesson = re.sub(r'<think>.*?</think>', '', response.content, flags=re.DOTALL).strip()
 
-            if lesson and lesson.upper() != "NONE":
-                entry_id = self.memory.add_lesson(
-                    lesson=lesson,
-                    chat_id=chat_id,
-                )
-                print(f"[INFO] Lesson stored: {entry_id} -> {lesson}")
-            else:
+            if not candidate_lesson or candidate_lesson.upper() == "NONE":
                 print("[INFO] No lesson worth storing for this task.")
+                return {}
+
+            similar = self.memory.recall_with_ids(candidate_lesson, k=3)
+            similar_block = "\n".join(f"[{item['id']}] {item['lesson']}" for item in similar) or "(none)"
+            print(f"[INFO] Candidate lesson:\n{candidate_lesson}\n\nSimilar lessons:\n{similar_block}")
+
+            reconciler = llm.with_structured_output(MemoryReconciliation)
+            decision = reconciler.invoke([
+                SystemMessage(content=MEMORY_RECONCILER_PROMPT),
+                HumanMessage(content=(
+                    f"NEW candidate lesson:\n{candidate_lesson}\n\n"
+                    f"EXISTING similar lessons:\n{similar_block}"
+                ))
+            ])
+
+            print(f"[INFO] Reconciliation decision: {decision.action}")
+
+            if decision.action == "add":
+                entry_id = self.memory.add_lesson(lesson=candidate_lesson, chat_id=chat_id)
+                print(f"[INFO] Lesson added: {entry_id} -> {candidate_lesson}")
+
+            elif decision.action == "update" and decision.target_id and decision.final_lesson:
+                self.memory.update_lesson(decision.target_id, decision.final_lesson)
+                print(f"[INFO] Lesson updated: {decision.target_id} -> {decision.final_lesson}")
+
+            elif decision.action == "delete" and decision.target_id:
+                self.memory.delete_lesson(decision.target_id)
+                print(f"[INFO] Lesson deleted: {decision.target_id}")
+
+            else:
+                print("[INFO] Skipped — duplicate of existing lesson.")
+
         except Exception as e:
-            print(f"[WARN] Failed to extract/store lesson: {e}")
+            print(f"[WARN] Failed to extract/reconcile/store lesson: {e}")
 
         return {}
 
@@ -221,26 +289,39 @@ class SupervisorAgent:
     def create_workflow(self, checkpointer):
         workflow = StateGraph(SupervisorState)
 
+        workflow.add_node("entry_router", self.entry_router_node)
+        workflow.add_node("greeting", self.greeting_node)
         workflow.add_node("recall_memory", self.recall_memory_node)
         workflow.add_node("generate_task", self.generate_task_node)
         workflow.add_node("human_review", self.human_review_node)
         workflow.add_node("plan_queries", self.plan_and_check_queries)
-        workflow.add_node("text2sql_agent", self.sql_agent.agent) 
+        workflow.add_node("text2sql_agent", self.sql_agent.agent)
         workflow.add_node("reasoning", self.reasoning_and_calc_node)
         workflow.add_node("research", self.research_node)
         workflow.add_node("tools", ToolNode(self.tools))
         workflow.add_node("store_memory", self.store_memory_node)
 
-        workflow.add_edge(START, "recall_memory")
+        workflow.add_edge(START, "entry_router")
+        workflow.add_conditional_edges(
+            "entry_router",
+            self.route_entry,
+            {
+                "store_memory": "store_memory",
+                "recall_memory": "recall_memory",
+                "greeting": "greeting",
+            },
+        )
+        workflow.add_edge("greeting", END)
+
         workflow.add_edge("recall_memory", "generate_task")
         workflow.add_edge("generate_task", "human_review")
-        workflow.add_edge("human_review", "plan_queries")   
+        workflow.add_edge("human_review", "plan_queries")
         workflow.add_conditional_edges("plan_queries", self.dispatch_sub_queries, ["text2sql_agent", "reasoning"])
-        workflow.add_edge("text2sql_agent", "reasoning")    
-        
+        workflow.add_edge("text2sql_agent", "reasoning")
+
         workflow.add_conditional_edges(
-            "reasoning", 
-            tools_condition, 
+            "reasoning",
+            tools_condition,
             {"tools": "tools", "__end__": 'research'}
         )
         workflow.add_edge("tools", "reasoning")

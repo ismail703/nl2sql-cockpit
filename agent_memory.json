@@ -4,5 +4,59 @@
     "lesson": "When calculating cash actually collected (money received in the bank), use the encaissement table.",
     "chat_id": "bnsaqwrtyooi889r84",
     "timestamp": "2026-07-14T15:08:14.067674+00:00"
+  },
+  {
+    "id": "2",
+    "lesson": "When building telecom KPI queries, create a “top‑up tier” (or bracket) by bucketizing prepaid recharge amounts into monetary ranges and use this tiered column for metrics such as “Recharge by Tranche/Bracket/Top‑up by Tier”.",
+    "chat_id": "yuoipponmty132546780",
+    "timestamp": "2026-07-15T09:19:26.145453+00:00"
+  },
+  {
+    "id": "3",
+    "lesson": "BSCS is the system that manages billing data.",
+    "chat_id": "yuoipponmty132546780",
+    "timestamp": "2026-07-15T09:24:55.626393+00:00"
+  },
+  {
+    "id": "4",
+    "lesson": "Recharge *6 (also called Étoile 6 or Star 6) denotes the prepaid top‑up bundle that provides exclusive social‑media access.",
+    "chat_id": "yuoipponmty132546780",
+    "timestamp": "2026-07-15T09:55:42.404975+00:00"
+  },
+  {
+    "id": "5",
+    "lesson": "Use the top‑up code “Recharge *3” to represent purchases of general mobile Internet data (4G/5G).",
+    "chat_id": "yuoipponmty132546780",
+    "timestamp": "2026-07-15T09:59:06.049191+00:00"
+  },
+  {
+    "id": "6",
+    "lesson": "Recharge *3 is the top‑up code that denotes purchasing general mobile Internet data (4G/5G).",
+    "chat_id": "yuoipponmty132546780",
+    "timestamp": "2026-07-15T10:00:55.382891+00:00"
+  },
+  {
+    "id": "7",
+    "lesson": "Recharge *3 is the top‑up code that denotes purchasing general mobile Internet data (4G/5G).",
+    "chat_id": "yuoipponmty132546780",
+    "timestamp": "2026-07-15T10:03:31.708709+00:00"
+  },
+  {
+    "id": "8",
+    "lesson": "Recharge *2 is the specific top‑up code used for Voice Calls (Minutes).",
+    "chat_id": "yuoipponmty132546780",
+    "timestamp": "2026-07-15T10:05:21.744287+00:00"
+  },
+  {
+    "id": "9",
+    "lesson": "When generating revenue for a specific recharge type over a period, always also calculate and include its percentage share of the total revenue for that same period.",
+    "chat_id": "yuoipponmty132546780",
+    "timestamp": "2026-07-15T10:11:44.179934+00:00"
+  },
+  {
+    "id": "10",
+    "lesson": "For total overall recharge revenue calculations, always use the GLOBAL RECHARGE KPI.",
+    "chat_id": "yuoipponmty132546780",
+    "timestamp": "2026-07-15T10:14:49.183070+00:00"
   }
 ]
