@@ -58,5 +58,17 @@
     "lesson": "For total overall recharge revenue calculations, always use the GLOBAL RECHARGE KPI.",
     "chat_id": "yuoipponmty132546780",
     "timestamp": "2026-07-15T10:14:49.183070+00:00"
+  },
+  {
+    "id": "11",
+    "lesson": "When providing revenue for a specific recharge type, also include its contribution (e.g., share or percentage) to the total recharge revenue for the same period.",
+    "chat_id": "c1071487-4247-4774-a156-9b6c4c9a1bd6",
+    "timestamp": "2026-07-15T14:40:27.236182+00:00"
+  },
+  {
+    "id": "12",
+    "lesson": "B2C customers are classified by a “type” attribute that includes multiple categories (e.g., prepaid, postpaid).",
+    "chat_id": "b6c4f56f-dbfd-4563-9834-8893e9f14713",
+    "timestamp": "2026-07-16T12:39:36.719001+00:00"
   }
 ]

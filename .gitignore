@@ -5,3 +5,9 @@ memory_vector_db/
 chroma_db_store/
 cockpit.db
 context/*
+cockpit_csv_tables/*
+create_db.py
+evidence_vect_db.py
+example_vect_db.py
+schema_vect_db.py
+values_vect_db.py

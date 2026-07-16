@@ -68,7 +68,8 @@ if points:
         batch = points[i:i+BATCH_SIZE]
         client.upsert(
             collection_name=COLLECTION_NAME,
-            points=batch
+            points=batch,
+            wait=True
         )
     print(f"✅ Successfully stored {len(points)} examples.")
 else:

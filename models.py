@@ -35,6 +35,7 @@ llama = ChatGroq(
 client = QdrantClient(
     host="localhost",
     port=6333,
+    timeout=60,
 )
 
 def get_embedding(text: str) -> list[float]:
