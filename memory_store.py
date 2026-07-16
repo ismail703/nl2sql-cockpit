@@ -9,14 +9,12 @@ from qdrant_client.http import models
 from models import get_embedding, client
 
 MEMORY_JSON_PATH = "agent_memory.json"
-MEMORY_VECTOR_DIR = "./memory_vector_db"
 
 
 class LongTermMemory:
     def __init__(
         self,
         json_path: str = MEMORY_JSON_PATH,
-        vector_dir: str = MEMORY_VECTOR_DIR,
     ):
         self.json_path = json_path
         self.collection_name = "agent_lessons"
@@ -132,11 +130,6 @@ class LongTermMemory:
         k: int = 3,
         score_threshold: Optional[float] = 0.6,
     ) -> List[Dict[str, Any]]:
-        """
-        Like recall(), but returns structured results with IDs so callers
-        can update/delete specific entries. score_threshold filters out
-        weak matches (Qdrant cosine similarity, higher = more similar).
-        """
         try:
             query_vector = get_embedding(query)
 

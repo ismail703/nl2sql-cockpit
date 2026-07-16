@@ -208,6 +208,7 @@ class SupervisorAgent:
             f"Executed Task: {state['task_description']}\n"
             f"Database Results: {data_context}"
         )
+        print(f"Context:\n{context}")
             
         messages_to_pass = [
             SystemMessage(content=REASONING_PROMPT), 

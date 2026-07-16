@@ -42,31 +42,48 @@ Return only the structured result.
 """
 
 TASK_GENERATOR_PROMPT = """
-**You are an analytical request interpreter agent.**
+You are an analytical request interpretation agent.
 
-Your sole responsibility is to receive a user's raw analytical request — which may be vague, incomplete, or informally worded — and transform it into a precise, unambiguous, and fully detailed analysis description that another agent or analyst can execute without needing clarification.
+Your role: turn the user's request into a clear, unambiguous specification 
+to validate with them BEFORE any analysis is run. You never perform the 
+analysis yourself.
 
-**Your output must:**
-- Clearly define the objective of the analysis
-- Specify the exact metric(s) to be computed (e.g., revenue, count, variance)
-- Identify the data scope — filters, segments, or dimensions involved (e.g., product codes, channels, regions)
-- Define the time period(s) explicitly, including exact dates based on today's date where needed
-- Indicate the output format — what figures, comparisons, or breakdowns should be returned (e.g., absolute value, percentage change, YoY delta)
-- Resolve any implicit assumptions (e.g., "this month" → March 2026; "last year" → 2025)
+For every request, you must make explicit:
+1. Metric(s) requested —  clear, descriptive name, no vague paraphrasing
+2. Time period — always resolved to explicit dates (e.g. "last month" 
+   must be converted to a precise calendar period based on today's date, 
+   never left as relative language)
+3. Filters / scope (market, product, segment, etc.)
+4. Expected output format — state whether it's a single value, a 
+   percentage, a table, etc.
 
-**You do not perform the analysis yourself.** Your only output is a precise, complete description of the analysis to be executed — written clearly enough for an analytical agent to action it without further clarification, and for a human to review and verify before execution.
-**Refer to the message history to fully contextualize the user's current request**
+
+Expected output: a structured summary (JSON or bullet list) covering 
+these 4 fields, followed by a single confirmation question proposing 
+your interpretation ("I understand you want X over Y — is that correct?").
 
 **Examples:**
 
 *User request:* "give me Year-over-Year MTD Comparison for '*6' Recharges for this month"
 
-*Output:* "Analyze Month-to-Date (MTD) recharge revenue for '*6' Recharges, comparing March 1–22, 2025 against March 1–22, 2026. Compute the total recharge amount for each period, then derive the absolute variance and the percentage change relative to the 2025 baseline."
+*(Assume today's date is March 22, 2026 — always resolve time periods 
+against the actual current date, not this example date.)*
 
-*User request:* "give me the total count of B2C active customers using ADSL for December 2025 and compare it to the same period in 2024"
-
-*Output:* "Found the total count of active B2C customers using ADSL for December 2025, and compare it to December 2024. Compute the absolute difference and the percentage change between the two years."
-
+*Output:* 
+Here's a structured summary of your request:
+*Metric:* 
+  Revenue for '*6' Recharges in MTD (Month-to-Date) for this year
+  Revenue for '*6' Recharges in MTD (Month-to-Date) for last year
+  Difference between the two values
+  percentage change between the two values
+*Time Period:* March 1–22, 2025 and March 1–22, 2026
+*Filters:* recharge *6
+*Expected Output Format:* 
+  A table with the following columns:
+  Period
+  Revenue
+  Difference
+  Percentage Change
 """
 FEEDBACK_EVALUATOR_PROMPT = """You are a feedback evaluation assistant. 
 Your job is to analyze the user's feedback on a proposed database task.
@@ -285,7 +302,7 @@ Decide what to do:
 - "update": the new lesson refines, extends, or corrects one existing lesson. Merge them into
   one clear, consolidated lesson and return it in final_lesson, with target_id set to that lesson's id.
 - "delete": the new lesson explicitly says something existing is wrong/no longer true, and there's
-  nothing to replace it with. Set target_id, leave final_lesson null.
+  nothing to replace it with, completely contradicts a current lesson, or explicitly cancels one. Set target_id, leave final_lesson null.
 - "skip": the new lesson says essentially the same thing as an existing one already does. No action needed.
 
 If the EXISTING lessons list is empty, always choose "add".
@@ -386,7 +403,7 @@ skip minor or redundant details to keep the report short.
 Structure the report with the following sections:
 
 ## Analytical Finding
-Restate the finding in one sentence.
+put the original analytical finding here
 
 ## Interpretation
 In 3-5 sentences maximum, synthesize the plausible reasons explaining this finding \

@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 [
   {
     "id": "1",
@@ -71,4 +72,91 @@
     "chat_id": "b6c4f56f-dbfd-4563-9834-8893e9f14713",
     "timestamp": "2026-07-16T12:39:36.719001+00:00"
   }
+=======
+[
+  {
+    "id": "1",
+    "lesson": "When calculating cash actually collected (money received in the bank), use the encaissement table.",
+    "chat_id": "bnsaqwrtyooi889r84",
+    "timestamp": "2026-07-14T15:08:14.067674+00:00"
+  },
+  {
+    "id": "2",
+    "lesson": "When building telecom KPI queries, create a “top‑up tier” (or bracket) by bucketizing prepaid recharge amounts into monetary ranges and use this tiered column for metrics such as “Recharge by Tranche/Bracket/Top‑up by Tier”.",
+    "chat_id": "yuoipponmty132546780",
+    "timestamp": "2026-07-15T09:19:26.145453+00:00"
+  },
+  {
+    "id": "3",
+    "lesson": "BSCS is the system that manages billing data.",
+    "chat_id": "yuoipponmty132546780",
+    "timestamp": "2026-07-15T09:24:55.626393+00:00"
+  },
+  {
+    "id": "4",
+    "lesson": "Recharge *6 (also called Étoile 6 or Star 6) denotes the prepaid top‑up bundle that provides exclusive social‑media access.",
+    "chat_id": "yuoipponmty132546780",
+    "timestamp": "2026-07-15T09:55:42.404975+00:00"
+  },
+  {
+    "id": "5",
+    "lesson": "Use the top‑up code “Recharge *3” to represent purchases of general mobile Internet data (4G/5G).",
+    "chat_id": "yuoipponmty132546780",
+    "timestamp": "2026-07-15T09:59:06.049191+00:00"
+  },
+  {
+    "id": "6",
+    "lesson": "Recharge *3 is the top‑up code that denotes purchasing general mobile Internet data (4G/5G).",
+    "chat_id": "yuoipponmty132546780",
+    "timestamp": "2026-07-15T10:00:55.382891+00:00"
+  },
+  {
+    "id": "7",
+    "lesson": "Recharge *3 is the top‑up code that denotes purchasing general mobile Internet data (4G/5G).",
+    "chat_id": "yuoipponmty132546780",
+    "timestamp": "2026-07-15T10:03:31.708709+00:00"
+  },
+  {
+    "id": "8",
+    "lesson": "Recharge *2 is the specific top‑up code used for Voice Calls (Minutes).",
+    "chat_id": "yuoipponmty132546780",
+    "timestamp": "2026-07-15T10:05:21.744287+00:00"
+  },
+  {
+    "id": "9",
+    "lesson": "When generating revenue for a specific recharge type over a period, calculate and include its percentage of the overall recharge revenue for that same period (i.e., return both the revenue amount and the percentage‑of‑total column).",
+    "chat_id": "yuoipponmty132546780",
+    "timestamp": "2026-07-16T08:27:43.647934+00:00"
+  },
+  {
+    "id": "10",
+    "lesson": "For total overall recharge revenue calculations, always use the GLOBAL RECHARGE KPI and avoid aggregating with a GROUP BY on the split column.",
+    "chat_id": "yuoipponmty132546780",
+    "timestamp": "2026-07-16T10:12:06.817248+00:00"
+  },
+  {
+    "id": "11",
+    "lesson": "When reporting the count of customers who performed a specific recharge type within a period, also include the percentage that count represents of the total unique recharging customers for that same period.",
+    "chat_id": "jhggghhg776540",
+    "timestamp": "2026-07-15T14:08:26.370624+00:00"
+  },
+  {
+    "id": "12",
+    "lesson": "When calculating total customers, use the count of new B2C customers rather than the total number of active customers.",
+    "chat_id": "hyakimaro123456789",
+    "timestamp": "2026-07-16T09:24:18.219920+00:00"
+  },
+  {
+    "id": "13",
+    "lesson": "When a request includes “for each” or “for every”, prefer using a GROUP BY clause to aggregate results instead of issuing multiple separate queries.",
+    "chat_id": "hyakimaro123456789",
+    "timestamp": "2026-07-16T09:34:00.313662+00:00"
+  },
+  {
+    "id": "14",
+    "lesson": "Do not automatically add a special filter for the December 2025 date in generated SQL unless explicitly requested.",
+    "chat_id": "vbvcvdvevfv123456",
+    "timestamp": "2026-07-16T11:07:29.905402+00:00"
+  }
+>>>>>>> Stashed changes
 ]
