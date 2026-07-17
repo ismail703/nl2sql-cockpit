@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date
 import re
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, START, END
@@ -115,10 +115,13 @@ class SupervisorAgent:
         user_input = state["messages"][-1].content
         memory_context = state.get("memory_context", "")
 
-        system_content = TASK_GENERATOR_PROMPT.format(current_date=datetime.now().strftime("%B %d, %Y"))
+        system_content = TASK_GENERATOR_PROMPT.format(
+            current_date=date.today().strftime("%B %d, %Y")
+        )
+
         if memory_context:
             system_content += (
-                "\n\nPrevious user feedback and lessons learned to consider (apply only if genuinely relevant and related to the task; do not force a connection):\n"
+                "\n\nPrevious user feedback and lessons learned to take into consideration (apply only if it is related to the task; do not force a connection):\n"
                 f"{memory_context}"
             )
 
@@ -228,6 +231,7 @@ class SupervisorAgent:
 
         correction_notes = state.get("correction_notes", "")
         chat_id = config.get("configurable", {}).get("thread_id")
+        route_decision = state.get("route_decision", "")
 
         if not correction_notes:
             print("[INFO] No feedback to process.")
@@ -260,18 +264,28 @@ class SupervisorAgent:
             ])
 
             print(f"[INFO] Reconciliation decision: {decision.action}")
+           
 
             if decision.action == "add":
                 entry_id = self.memory.add_lesson(lesson=candidate_lesson, chat_id=chat_id)
                 print(f"[INFO] Lesson added: {entry_id} -> {candidate_lesson}")
+                return {
+                    "messages": [AIMessage(content="Thank you for your feedback! I will consider it for future responses.")]
+                }
 
             elif decision.action == "update" and decision.target_id and decision.final_lesson:
                 self.memory.update_lesson(decision.target_id, decision.final_lesson)
                 print(f"[INFO] Lesson updated: {decision.target_id} -> {decision.final_lesson}")
+                return {
+                    "messages": [AIMessage(content="Thank you for your feedback! I will consider it for future responses.")]
+                } 
 
             elif decision.action == "delete" and decision.target_id:
                 self.memory.delete_lesson(decision.target_id)
                 print(f"[INFO] Lesson deleted: {decision.target_id}")
+                return {
+                    "messages": [AIMessage(content="Thank you for your feedback! I will consider it for future responses.")]
+                }
 
             else:
                 print("[INFO] Skipped — duplicate of existing lesson.")

@@ -223,3 +223,23 @@ class LongTermMemory:
         except Exception as e:
             print(f"[WARN] Failed to delete vector for id {entry_id}: {e}")
             return False
+
+    def clear_all(self) -> bool:
+            try:
+                dummy_vector = get_embedding("test")
+
+                client.delete_collection(collection_name=self.collection_name)
+                client.create_collection(
+                    collection_name=self.collection_name,
+                    vectors_config=models.VectorParams(
+                        size=len(dummy_vector),
+                        distance=models.Distance.COSINE,
+                    ),
+                )
+            except Exception as e:
+                print(f"[WARN] Failed to clear Qdrant collection: {e}")
+                return False
+
+            self._save([])
+            return True            
+    
