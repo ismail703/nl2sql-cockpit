@@ -16,5 +16,11 @@
     "lesson": "The acronym “GAS” denotes new customers and appears in the names of related KPI metrics.",
     "chat_id": "qaquqiqoqpqc1234567890",
     "timestamp": "2026-07-17T09:32:28.879007+00:00"
+  },
+  {
+    "id": "4",
+    "lesson": "FTTH and ADSL should be treated as offer types (not metric fields), and queries should produce generic results rather than being tied to a specific GAS.",
+    "chat_id": "wqwbwcwewf12345678",
+    "timestamp": "2026-07-20T09:48:02.841869+00:00"
   }
 ]

@@ -21,7 +21,7 @@ llm = ChatGroq(
 )
 
 qwen = ChatGroq(
-    model="qwen/qwen3-32b",
+    model="qwen/qwen3.6-27b",
     groq_api_key=api_key,
     temperature=0, 
 )

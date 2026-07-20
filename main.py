@@ -13,7 +13,7 @@ from langchain_core.messages import HumanMessage
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
-from langfuse.langchain import CallbackHandler
+# from langfuse.langchain import CallbackHandler
 
 from agents.supervisor_agent import SupervisorAgent
 
@@ -34,7 +34,6 @@ supervisor_agent = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifecycle manager for FastAPI to handle global resources safely."""
     global db_pool, supervisor_agent
 
     logger.info("Initializing database pool and Supervisor Agent...")
@@ -53,17 +52,8 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    logger.info("Closing database pool...")
     if db_pool:
         db_pool.close()
-
-# FastAPI App
-app = FastAPI(
-    title="Analytical Agent API",
-    description="API for interacting with the Analytical Supervisor Agent with HITL capabilities",
-    version="2.0.0",
-    lifespan=lifespan
-)
 
 app = FastAPI(
     title="Analytical Agent API",
@@ -75,13 +65,12 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",  # React/Vite frontend
+        "http://localhost:5173",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 class NewChatResponse(BaseModel):
     chat_id: str
@@ -100,7 +89,6 @@ class ChatResponse(BaseModel):
 
 
 def get_supervisor():
-    """Dependency injection for the supervisor."""
     if not supervisor_agent:
         raise HTTPException(
             status_code=500, detail="Agent not initialized properly.")
@@ -125,20 +113,18 @@ async def invoke_agent(
     supervisor: SupervisorAgent = Depends(get_supervisor)
 ):
     try:
-        langfuse_handler = CallbackHandler()
+        # langfuse_handler = CallbackHandler()
         config = {
             "configurable": {"thread_id": chat_id},
-            "callbacks": [langfuse_handler]
+            # "callbacks": [langfuse_handler]
         }
 
         current_state = supervisor.agent.get_state(config)
 
         if current_state.next and "human_review" in current_state.next:
-            logger.info(f"[RESUME] {chat_id} | Feedback: {request.message}")
             supervisor.agent.invoke(
                 Command(resume=request.message), config=config)
         else:
-            logger.info(f"[START] {chat_id} | Query: {request.message}")
             supervisor.agent.invoke(
                 {"messages": [HumanMessage(content=request.message)]},
                 config=config
@@ -166,7 +152,7 @@ async def invoke_agent(
         )
 
     except Exception as e:
-        logger.error(f"[ERROR] {chat_id}: {str(e)}", exc_info=True)
+        logger.error("Internal Agent Error: " + str(e))
         raise HTTPException(
             status_code=500,
             detail="Internal Agent Error"

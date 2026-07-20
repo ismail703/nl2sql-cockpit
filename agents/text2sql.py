@@ -3,7 +3,6 @@ from typing import Literal
 from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.graph import StateGraph, END, START 
 
-# Imports from refactored modules
 from states import AgentState, VectorDBQueries, SemanticCheckResult
 from prompts import (
     TEXT2SQL_DECOMPOSITION_SYSTEM_PROMPT,
@@ -25,32 +24,24 @@ class Text2SQL:
       
     
     def generate_vect_db_query(self, state: AgentState):
-        print(f"  [INFO] Generating Vector DB Queries... ")
-        
         structured_llm = qwen.with_structured_output(VectorDBQueries)
         
-        queries_object = structured_llm.invoke([
+        queries = structured_llm.invoke([
             SystemMessage(content=TEXT2SQL_DECOMPOSITION_SYSTEM_PROMPT),
             HumanMessage(content=state['question'])
         ])
-        
-        print("schema: ", queries_object.schema_query)
-        print("evidence: ", queries_object.knowledge_query)
-        print("value: ", queries_object.value_query)
-        print("example: ", queries_object.example_query)
 
         return {
             "vect_queries": {
-                "schema": queries_object.schema_query,
-                "evidence": queries_object.knowledge_query,
-                "value": queries_object.value_query,
-                "example": queries_object.example_query
+                "schema": queries.schema_query,
+                "evidence": queries.knowledge_query,
+                "value": queries.value_query,
+                "example": queries.example_query
             }
         }
 
     def retrieve_schema(self, state: AgentState):
         queries = state['vect_queries']
-        print(f"  [INFO] Retrieving Schema & Metadata...")
 
         res_schema = []
         for q_text in queries['schema']:
@@ -93,7 +84,6 @@ class Text2SQL:
    
     def retrieve_evidence(self, state: AgentState):
         queries = state['vect_queries']
-        print(f"  [INFO] Retrieving Evidence...")
         
         search_terms = queries['evidence']
         unique_docs = set()
@@ -116,7 +106,6 @@ class Text2SQL:
 
     def retrieve_values(self, state: AgentState):
         queries = state['vect_queries']
-        print(f"  [INFO] Retrieving Values...")
         
         search_terms = queries["value"]
         unique_value_mappings = set()
@@ -145,21 +134,17 @@ class Text2SQL:
         return {"db_results": [values_txt]}
 
     def generate_sql(self, state: AgentState):
-        print("  [INFO] Generating SQL   ")
         full_context = "\n\n".join(state['db_results'])
         
         prompt = get_text2sql_generation_prompt(full_context, state['question'])
         response = llm.invoke([prompt])
         cleaned_sql = response.content.replace("```sql", "").replace("```", "").strip()
 
-        print("Generated SQL: ", cleaned_sql)
         return {"sql_candidate": cleaned_sql}
 
     def syntax_checker(self, state: AgentState):
         current_sql = state["sql_candidate"]
         retries = state.get("syntax_retry", 0)
-        
-        print(f"  [INFO] Checking Syntax (Attempt {retries + 1})")
 
         try:
             conn = sqlite3.connect(DB_PATH)
@@ -168,7 +153,6 @@ class Text2SQL:
             result_data = cursor.fetchall()
             conn.close()
 
-            print("   [Success] SQL executed successfully.")
             return {
                 "query_result": str(result_data),
                 "is_sql_modified": False,
@@ -177,10 +161,8 @@ class Text2SQL:
 
         except Exception as e:
             error_msg = str(e)
-            print(f"   [Error] SQL failed: {error_msg}")
                 
             if retries >= 3:
-                print("   [Fail] Max retries reached.")
                 return {
                     "is_sql_modified": False,
                     "query_result": f"Error: Failed after 3 attempts. Last error: {error_msg}",
@@ -197,7 +179,6 @@ class Text2SQL:
         
             response = llama.invoke(messages)
             fixed_sql = response.content.replace("```sql", "").replace("```", "").strip()
-            print("Fixed SQL: ", fixed_sql)
 
             return {
                 "sql_candidate": fixed_sql,
@@ -206,17 +187,13 @@ class Text2SQL:
             }
 
     def should_continue_syntax(self, state: AgentState) -> Literal["syntax_checker", "semantic_checker"]:
-        if state.get("is_sql_modified", False):
-            return "syntax_checker"
-        else:
-            return "semantic_checker"        
+        return "syntax_checker" if state.get("is_sql_modified", False) else "semantic_checker"    
 
     def semantic_checker(self, state: AgentState):
-        print("  [INFO] Semantic Logic Review ")
         current_sql = state["sql_candidate"]
         original_question = state["question"]
         semantic_retry = state.get("semantic_retry", 0)
-        structured_llm = qwen.with_structured_output(SemanticCheckResult)
+        structured_llm = llm.with_structured_output(SemanticCheckResult)
         full_context = "\n\n".join(state['db_results'])
     
         system_prompt = get_text2sql_semantic_system_prompt(full_context)
@@ -226,23 +203,16 @@ class Text2SQL:
             SystemMessage(content=system_prompt),
             HumanMessage(content=user_prompt)
         ])
-    
-        print(f"   [Reasoning]: {result.reasoning}")
 
         if result.is_semantically_correct:
-            print("   [Success] Logic is sound.")
             return {"is_sql_modified": False}
         else:      
             if semantic_retry >= 1:
-                print("   [Fail] Max semantic retries reached.")
                 return {
                     "is_sql_modified": False,
-                    # "query_result": f"Error: Semantic logic failed after 2 attempts. Last reasoning: {result.reasoning}",
                     "semantic_retry": 0,
                 }
-            
-            print("   [Warning] Logic error detected. Updating SQL.")
-            print(f"  [INFO] Corrected SQL: {result.corrected_sql}")
+
             return {
                 "sql_candidate": result.corrected_sql,
                 "is_sql_modified": True,
@@ -251,19 +221,9 @@ class Text2SQL:
             }
 
     def check_semantic_modification(self, state: AgentState) -> Literal["syntax_checker", "format_result"]:
-        if state.get("is_sql_modified", False):
-            print("   >> Looping back to Syntax Checker")
-            return "syntax_checker"
-        else:
-            print("   >> Proceeding to Finish")
-            return "format_result"
+        return "syntax_checker" if state.get("is_sql_modified", False) else "format_result"
 
     def format_result(self, state: AgentState):
-        """
-        Convert raw database results into a natural language response.
-        """
-        print("  [Node] Formatting Final Response")
-
         if "Error:" in state.get("query_result", ""):
             answer = f"I'm sorry, I encountered an issue: {state['query_result']}"
         else:
@@ -276,7 +236,7 @@ class Text2SQL:
             ])
 
             answer = response.content
-            print("Final Answer: ", answer)
+            print(f"Query: {state.get('sql_candidate', '')}\nAnswer: {answer}")
 
         return {
             "formatted_result": answer,
