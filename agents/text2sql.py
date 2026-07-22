@@ -13,18 +13,18 @@ from prompts import (
     TEXT2SQL_FORMAT_SYSTEM_PROMPT,
     get_text2sql_format_user_prompt
 )
-from models import (
-    llm, qwen, llama, DB_PATH, client, get_embedding
-)
+from models import gpt, qwen, client, embed_model, cockpit_db_pool
+
 
 class Text2SQL:
     def __init__(self):
         self.agent = self.create_agent()
+        self.cockpit_db_pool  = cockpit_db_pool
         self.client = client
       
     
     def generate_vect_db_query(self, state: AgentState):
-        structured_llm = qwen.with_structured_output(VectorDBQueries)
+        structured_llm = gpt.with_structured_output(VectorDBQueries)
         
         queries = structured_llm.invoke([
             SystemMessage(content=TEXT2SQL_DECOMPOSITION_SYSTEM_PROMPT),
@@ -45,7 +45,7 @@ class Text2SQL:
 
         res_schema = []
         for q_text in queries['schema']:
-            query_vector = get_embedding(q_text)
+            query_vector = embed_model.embed_query(q_text)
             
             response = self.client.query_points(
                 collection_name="telco_db_schema",
@@ -66,7 +66,7 @@ class Text2SQL:
         search_term = queries.get("example", state['question'])
         if isinstance(search_term, list): search_term = search_term[0]
 
-        query_vector = get_embedding(search_term)
+        query_vector = embed_model.embed_query(search_term)
         response = self.client.query_points(
             collection_name="sql_few_shot_examples",
             query=query_vector,
@@ -89,7 +89,7 @@ class Text2SQL:
         unique_docs = set()
         
         for term in search_terms:
-            query_vector = get_embedding(term)
+            query_vector = embed_model.embed_query(term)
 
             response = self.client.query_points(
                 collection_name="telco_domain_evidence",
@@ -111,7 +111,7 @@ class Text2SQL:
         unique_value_mappings = set()
         
         for term in search_terms:
-            query_vector = get_embedding(term)
+            query_vector = embed_model.embed_query(term)
 
             response = self.client.query_points(
                 collection_name="telco_distinct_values",
@@ -137,7 +137,7 @@ class Text2SQL:
         full_context = "\n\n".join(state['db_results'])
         
         prompt = get_text2sql_generation_prompt(full_context, state['question'])
-        response = llm.invoke([prompt])
+        response = gpt.invoke([prompt])
         cleaned_sql = response.content.replace("```sql", "").replace("```", "").strip()
 
         return {"sql_candidate": cleaned_sql}
@@ -147,11 +147,10 @@ class Text2SQL:
         retries = state.get("syntax_retry", 0)
 
         try:
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            cursor.execute(current_sql)
-            result_data = cursor.fetchall()
-            conn.close()
+            with self.cockpit_db_pool.connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(current_sql)
+                    result_data = cursor.fetchall()
 
             return {
                 "query_result": str(result_data),
@@ -161,23 +160,23 @@ class Text2SQL:
 
         except Exception as e:
             error_msg = str(e)
-                
+
             if retries >= 3:
                 return {
                     "is_sql_modified": False,
                     "query_result": f"Error: Failed after 3 attempts. Last error: {error_msg}",
                     "syntax_retry": 0,
                 }
-        
+
             full_context = "\n\n".join(state['db_results'])
             system_prompt = get_text2sql_debugger_system_prompt(full_context)
-        
+
             messages = [
                 SystemMessage(content=system_prompt),
-                HumanMessage(content=f"Original Query: {current_sql}\nSQLite Error: {error_msg}")
+                HumanMessage(content=f"Original Query: {current_sql}\nPostgreSQL Error: {error_msg}")
             ]
-        
-            response = llama.invoke(messages)
+
+            response = gpt.invoke(messages)
             fixed_sql = response.content.replace("```sql", "").replace("```", "").strip()
 
             return {
@@ -193,7 +192,7 @@ class Text2SQL:
         current_sql = state["sql_candidate"]
         original_question = state["question"]
         semantic_retry = state.get("semantic_retry", 0)
-        structured_llm = llm.with_structured_output(SemanticCheckResult)
+        structured_llm = qwen.with_structured_output(SemanticCheckResult)
         full_context = "\n\n".join(state['db_results'])
     
         system_prompt = get_text2sql_semantic_system_prompt(full_context)
@@ -204,7 +203,9 @@ class Text2SQL:
             HumanMessage(content=user_prompt)
         ])
 
-        if result.is_semantically_correct:
+        is_correct = str(result.is_semantically_correct).strip().lower() == "true"
+
+        if is_correct:
             return {"is_sql_modified": False}
         else:      
             if semantic_retry >= 1:
@@ -230,7 +231,7 @@ class Text2SQL:
             user_question, raw_data = state["question"], state["query_result"]
             
             user_message = get_text2sql_format_user_prompt(user_question, raw_data)
-            response = llama.invoke([
+            response = qwen.invoke([
                 SystemMessage(content=TEXT2SQL_FORMAT_SYSTEM_PROMPT),
                 HumanMessage(content=user_message)
             ])

@@ -1,36 +1,18 @@
 import os
 from dotenv import load_dotenv
-from langchain_groq import ChatGroq
 from qdrant_client import QdrantClient
-import requests
+from langchain_openai import OpenAIEmbeddings
+from psycopg_pool import ConnectionPool
+from langchain_groq import ChatGroq
+from psycopg.rows import dict_row
 
-# ==========================================
-# SETUP & CONFIGURATION
-# ==========================================
+
 load_dotenv()
-api_key = os.getenv("GROQ_API_KEY")
-DB_URI = os.getenv("DB_URI")
-
-DB_PATH = "cockpit.db"
-
-# Initialize LLMs
-llm = ChatGroq(
-    model="openai/gpt-oss-120b",
-    groq_api_key=api_key,
-    temperature=0, 
-)
-
-qwen = ChatGroq(
-    model="qwen/qwen3.6-27b",
-    groq_api_key=api_key,
-    temperature=0, 
-)
-
-llama = ChatGroq(
-    model="llama-3.1-8b-instant",
-    groq_api_key=api_key,
-    temperature=0, 
-)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+EMBED_API_KEY = os.getenv("EMBED_API_KEY")
+COCKPIT_DB_URI = os.getenv("COCKPIT_DB_URI")
+DB_CP_URI = os.getenv("DB_CP_URI")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
 
 client = QdrantClient(
     host="localhost",
@@ -38,10 +20,28 @@ client = QdrantClient(
     timeout=60,
 )
 
-def get_embedding(text: str) -> list[float]:
-    response = requests.post(
-        "http://localhost:11434/api/embeddings",
-        json={"model": "qwen3-embedding:4b", "prompt": text}
-    )
-    response.raise_for_status()
-    return response.json()["embedding"]
+gpt = ChatGroq(
+    model="openai/gpt-oss-120b",
+    groq_api_key=GROQ_API_KEY,
+    temperature=0, 
+)
+
+qwen = ChatGroq(
+    model="qwen/qwen3.6-27b",
+    groq_api_key=GROQ_API_KEY,
+    temperature=0, 
+)
+
+embed_model = OpenAIEmbeddings(
+    base_url=OLLAMA_BASE_URL,
+    api_key='ollama',
+    model='qwen3-embedding:4b',
+    check_embedding_ctx_length=False,
+)
+
+cockpit_db_pool = ConnectionPool(
+    conninfo=COCKPIT_DB_URI,
+    kwargs={"autocommit": True, "row_factory": dict_row},
+    min_size=1,
+    max_size=10,
+)

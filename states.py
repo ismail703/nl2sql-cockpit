@@ -70,7 +70,7 @@ class VectorDBQueries(BaseModel):
 
 class SemanticCheckResult(BaseModel): 
     reasoning: str = Field(description="Explanation of why the SQL is correct or incorrect based on the user question.") 
-    is_semantically_correct: bool = Field(description="True if the SQL perfectly matches the user intent. False if logic needs fixing.") 
+    is_semantically_correct: Literal["true", "false", "True", "False"] = Field(description="True if the SQL perfectly matches the user intent. False if logic needs fixing.") 
     corrected_sql: str = Field(description="The fixed SQL query if incorrect. If correct, return the original SQL.") 
 
 class AgentState(TypedDict):

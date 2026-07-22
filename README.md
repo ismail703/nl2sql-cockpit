@@ -1,20 +1,63 @@
 # Telecom Data Analytical Agent
 
-This project is a multi-agent FastAPI application built with LangGraph. It turns natural-language business questions into SQL, executes them against the local database, and returns a readable answer for telecom analytics workflows.
+This project is a FastAPI application built with LangGraph for telecom analytics. It turns natural-language business questions into SQL, executes them against the Cockpit PostgreSQL database, and returns a readable answer.
 
-## Overview
+## What Changed
 
-The application is organized around a supervisor-first workflow:
+The project now uses PostgreSQL for Cockpit data instead of SQLite. The current workflow focuses on supervisor-driven SQL analysis and no longer includes the research agent or Tavily-based external enrichment.
 
-- `SupervisorAgent` handles the incoming chat request, planning, human-in-the-loop review, final reasoning, and orchestration.
-- `Text2SQL` generates and validates SQL for structured database questions.
-- `ResearchAgent` takes the final analytical finding and expands it with external research using Tavily search, then synthesizes a short research report.
+## Architecture
 
-The response flow keeps SQL work focused while allowing the supervisor to combine database results, calculations, and research into a single answer.
+The application is organized around a small, focused workflow:
+
+- `SupervisorAgent` handles the incoming chat request, planning, human-in-the-loop review, and final reasoning.
+- `Text2SQL` generates SQL, validates it, and executes it against the Cockpit PostgreSQL database.
+
+Retrieval still relies on Qdrant. The scripts under `retrieve/` index schema, values, evidence, and examples from the JSON files in `context/`.
+
+## PostgreSQL Setup
+
+Run PostgreSQL locally in Docker before starting the application:
+
+```bash
+docker run -d --name cockpit-postgres -e POSTGRES_USER=username -e POSTGRES_PASSWORD=password -e POSTGRES_DB=cockpit_db -p 5432:5432 postgres:latest
+```
+
+This command creates a container named `cockpit-postgres` and exposes PostgreSQL on `localhost:5432`.
+
+### Optional database initialization
+
+After the database is running, create the Cockpit tables and seed the mock data by running the database setup script used by the project.
+
+If you maintain your own initialization script, the expected database is:
+
+- Host: `localhost`
+- Port: `5432`
+- Database: `cockpit_db`
+- Username: `username`
+- Password: `password`
+
+## Environment Configuration
+
+Create a `.env` file in the repository root and configure the services used by the app:
+
+```env
+COCKPIT_DB_URI=postgresql://root:1234@localhost:5432/cockpit_db
+GROQ_API_KEY=your_groq_api_key_here
+
+# Langfuse tracing
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_HOST=https://cloud.langfuse.com
+```
+
+Notes:
+
+- `COCKPIT_DB_URI` is required for the PostgreSQL connection.
+- `GROQ_API_KEY` is required for the LLM calls.
+- `LANGFUSE_HOST` can point to Langfuse Cloud or a self-hosted instance.
 
 ## Retrieval Data Flow
-
-The project uses Qdrant as the vector database. The retrieval scripts read source data from the `context` folder, create Qdrant collections, and populate them with embeddings.
 
 The JSON files that feed the retrieval pipeline should be placed in `context/`:
 
@@ -23,7 +66,7 @@ The JSON files that feed the retrieval pipeline should be placed in `context/`:
 - `context/evidence.json`
 - `context/question-example.json`
 
-Keep these files in the `context` folder so the scripts in `retrieve/` can load them without changing paths.
+Keep these files in `context/` so the scripts in `retrieve/` can load them without changing paths.
 
 ## Qdrant Setup
 
@@ -57,55 +100,16 @@ python -m retrieve.store_evidence
 python -m retrieve.store_examples
 ```
 
-## Project Structure
-
-```text
-main.py                  # FastAPI app and request lifecycle
-models.py                # LLM, embeddings, and Qdrant configuration
-prompts.py               # Prompt templates used by the agents
-states.py                # LangGraph state definitions
-agents/
-  supervisor_agent.py    # Main orchestrator and reasoning flow
-  text2sql.py            # SQL generation and execution agent
-  research_agent.py      # External research and report synthesis agent
-retrieve/                # Qdrant indexing scripts for schema, values, evidence, and examples
-context/                 # JSON source files used to populate Qdrant collections
-assets/                  # Static assets and local storage
-requirements.txt         # Python dependencies
-README.md                # Project documentation
-```
-
-## Environment Configuration
-
-Create a `.env` file in the repository root and add the required credentials:
-
-```env
-DB_URI=postgresql://username:password@localhost:5432/your_database_name
-GROQ_API_KEY=your_groq_api_key_here
-TAVILY_API_KEY=your_tavily_api_key_here
-
-# Langfuse tracing
-LANGFUSE_PUBLIC_KEY=pk-lf-...
-LANGFUSE_SECRET_KEY=sk-lf-...
-LANGFUSE_HOST=https://cloud.langfuse.com
-```
-
-Notes:
-
-- `DB_URI` is required for the PostgreSQL checkpointer.
-- `GROQ_API_KEY` is required for the LLM calls.
-- `TAVILY_API_KEY` is required by `ResearchAgent`.
-- `LANGFUSE_HOST` can point to Langfuse Cloud or a self-hosted instance.
-
 ## Setup
 
 1. Create and activate a Python environment.
 2. Install dependencies with `pip install -r requirements.txt`.
-3. Start Qdrant with the Docker commands above.
-4. Make sure the JSON files are present in `context/`.
-5. Run the retrieval scripts in `retrieve/` to populate Qdrant.
-6. Start PostgreSQL and any other local services used by your setup.
-7. Start the API with `fastapi dev main.py --reload`.
+3. Start PostgreSQL with the Docker command above.
+4. Create the `.env` file with `COCKPIT_DB_URI` and the remaining secrets.
+5. Start Qdrant with the Docker commands above.
+6. Make sure the JSON files are present in `context/`.
+7. Run the retrieval scripts in `retrieve/` to populate Qdrant.
+8. Start the API with `fastapi dev main.py --reload`.
 
 ## API
 
@@ -119,6 +123,23 @@ Example:
 ```bash
 curl -X POST http://127.0.0.1:8000/chats/new -H "Content-Type: application/json"
 curl -X POST http://127.0.0.1:8000/chats/<chat_id>/ask -H "Content-Type: application/json" -d "{\"message\":\"Give me the MTD comparison for product *6\"}"
+```
+
+## Project Structure
+
+```text
+main.py                  # FastAPI app and request lifecycle
+models.py                # LLM, embeddings, and Qdrant configuration
+prompts.py               # Prompt templates used by the agents
+states.py                # LangGraph state definitions
+agents/
+  supervisor_agent.py    # Main orchestrator and reasoning flow
+  text2sql.py            # SQL generation and execution agent
+retrieve/                # Qdrant indexing scripts for schema, values, evidence, and examples
+context/                 # JSON source files used to populate Qdrant collections
+assets/                  # Static assets and local storage
+requirements.txt         # Python dependencies
+README.md                # Project documentation
 ```
 
 ## Notes

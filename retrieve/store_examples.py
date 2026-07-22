@@ -1,7 +1,7 @@
 import json
 import os
 from qdrant_client.http import models
-from models import embed_model, client
+from models import get_embedding, client
 from pathlib import Path
 
 
@@ -21,7 +21,7 @@ COLLECTION_NAME = "sql_few_shot_examples"
 
 if not client.collection_exists(COLLECTION_NAME):
     print("⏳ Determining vector size from Ollama...")
-    dummy_vector = embed_model.embed_query("test")
+    dummy_vector = get_embedding("test")
     vector_size = len(dummy_vector)
     
     client.create_collection(
@@ -47,7 +47,7 @@ for idx, ex in enumerate(examples_data):
     if not question:
         continue
         
-    vector = embed_model.embed_query(question)
+    vector = get_embedding(question)
 
     payload = {
         "document": question,
@@ -81,7 +81,7 @@ else:
 new_user_question = "What is the total number of Revenue for each customer segment?"
 print(f"\n🔍 Testing Retrieval for: '{new_user_question}'")
 
-query_vector = embed_model.embed_query(new_user_question)
+query_vector = get_embedding(new_user_question)
 
 response = client.query_points(
     collection_name=COLLECTION_NAME,

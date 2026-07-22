@@ -1,7 +1,7 @@
 import json
 import os
 from qdrant_client.http import models
-from models import client, embed_model
+from models import client, get_embedding
 from pathlib import Path
 
 # ==========================================
@@ -23,7 +23,7 @@ if client.collection_exists(COLLECTION_NAME):
     print(f"🗑️ Deleted old collection '{COLLECTION_NAME}'")
 
 print("⏳ Determining vector size from Ollama...")
-dummy_vector = embed_model.embed_query("test")
+dummy_vector = get_embedding("test")
 vector_size = len(dummy_vector)
 
 client.create_collection(
@@ -70,7 +70,7 @@ for table in tables_data:
 
             val_str = str(val).strip()
 
-            vector = embed_model.embed_query(val_str)
+            vector = get_embedding(val_str)
 
             payload = {
                 "document": val_str,
@@ -114,7 +114,7 @@ else:
 test_term = "GAS"
 print(f"\n🔍 Testing Retrieval for user term: '{test_term}'")
 
-query_vector = embed_model.embed_query(test_term)
+query_vector = get_embedding(test_term)
 
 response = client.query_points(
     collection_name=COLLECTION_NAME,

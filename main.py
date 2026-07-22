@@ -1,11 +1,10 @@
 import uuid
-import os
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
-from dotenv import load_dotenv
 
 from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.types import Command
@@ -13,17 +12,12 @@ from langchain_core.messages import HumanMessage
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
-# from langfuse.langchain import CallbackHandler
+from langfuse.langchain import CallbackHandler
 
 from agents.supervisor_agent import SupervisorAgent
 
-from fastapi.middleware.cors import CORSMiddleware
 
-load_dotenv()
-
-DB_URI = os.getenv("DB_URI")
-if not DB_URI:
-    raise ValueError("DB_URI environment variable is not set.")
+from models import DB_CP_URI
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -34,11 +28,12 @@ supervisor_agent = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Lifecycle manager for FastAPI to handle global resources safely."""
     global db_pool, supervisor_agent
 
     logger.info("Initializing database pool and Supervisor Agent...")
     db_pool = ConnectionPool(
-        conninfo=DB_URI,
+        conninfo=DB_CP_URI,
         kwargs={
             "autocommit": True,
             "row_factory": dict_row,
@@ -52,6 +47,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    logger.info("Closing database pool...")
     if db_pool:
         db_pool.close()
 
@@ -71,6 +67,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 class NewChatResponse(BaseModel):
     chat_id: str
@@ -113,18 +110,20 @@ async def invoke_agent(
     supervisor: SupervisorAgent = Depends(get_supervisor)
 ):
     try:
-        # langfuse_handler = CallbackHandler()
+        langfuse_handler = CallbackHandler()
         config = {
             "configurable": {"thread_id": chat_id},
-            # "callbacks": [langfuse_handler]
+            "callbacks": [langfuse_handler]
         }
 
         current_state = supervisor.agent.get_state(config)
 
         if current_state.next and "human_review" in current_state.next:
+            logger.info(f"[RESUME] {chat_id} | Feedback: {request.message}")
             supervisor.agent.invoke(
                 Command(resume=request.message), config=config)
         else:
+            logger.info(f"[START] {chat_id} | Query: {request.message}")
             supervisor.agent.invoke(
                 {"messages": [HumanMessage(content=request.message)]},
                 config=config
@@ -152,7 +151,7 @@ async def invoke_agent(
         )
 
     except Exception as e:
-        logger.error("Internal Agent Error: " + str(e))
+        logger.error(f"[ERROR] {chat_id}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Internal Agent Error"

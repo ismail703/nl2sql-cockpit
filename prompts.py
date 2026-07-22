@@ -186,7 +186,7 @@ TEXT2SQL_DECOMPOSITION_SYSTEM_PROMPT = """
         """
 
 def get_text2sql_generation_prompt(full_context: str, question: str) -> str:
-    return f"""You are an expert SQLite developer for a Telco company.
+    return f"""You are an expert Postgres developer for a Telco company.
         
         RETRIEVED CONTEXT (Schema, Examples, Values, and Evidence):
         {full_context}
@@ -194,7 +194,7 @@ def get_text2sql_generation_prompt(full_context: str, question: str) -> str:
         USER QUESTION: "{question}"
         
         INSTRUCTIONS:
-        1. Write a valid SQLite query to answer the question.
+        1. Write a valid Postgres query to answer the question.
         2. Use the provided context to identify correct tables, columns, and exact values.
         3. Return ONLY the SQL query. No markdown formatting, no explanations.
         4. Use valid filters and ensure that the values applied in the filters are correct by verifying them against the provided context.
@@ -203,7 +203,7 @@ def get_text2sql_generation_prompt(full_context: str, question: str) -> str:
         """
 
 def get_text2sql_debugger_system_prompt(full_context: str) -> str:
-    return f"""You are a SQL Debugger. The user's SQLite query failed with an error. 
+    return f"""You are a SQL Debugger. The user's Postgres query failed with an error. 
             Fix the query based ONLY on the error message provided. 
             Return ONLY the corrected SQL. No markdown formatting, no explanations.
             

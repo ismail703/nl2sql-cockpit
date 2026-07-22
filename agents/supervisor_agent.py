@@ -8,7 +8,7 @@ from langgraph.checkpoint.postgres import PostgresSaver
 from langchain_core.tools import tool
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
-from models import llm, llama, qwen
+from models import gpt
 
 from agents.text2sql import Text2SQL
 
@@ -55,13 +55,13 @@ class SupervisorAgent:
         self.sql_agent = Text2SQL()         
         self.memory = LongTermMemory()
         self.tools = [calculate_percentage, compare_periods]
-        self.llm_with_tools = qwen.bind_tools(self.tools)
+        self.llm_with_tools = gpt.bind_tools(self.tools)
         self.agent = self.create_workflow(checkpointer)
 
     def entry_router_node(self, state: SupervisorState):
         user_input = state["messages"][-1].content
 
-        router = llm.with_structured_output(RouteDecision)
+        router = gpt.with_structured_output(RouteDecision)
         decision = router.invoke([
             SystemMessage(content=ENTRY_ROUTER_PROMPT),
             HumanMessage(content=user_input)
@@ -116,7 +116,7 @@ class SupervisorAgent:
                 f"{memory_context}"
             )
 
-        response = llama.invoke([
+        response = gpt.invoke([
             SystemMessage(content=system_content),
             HumanMessage(content=user_input)
         ])
@@ -134,7 +134,7 @@ class SupervisorAgent:
             "task_description": state["task_description"]
         })
 
-        evaluator = llm.with_structured_output(FeedbackEvaluation)
+        evaluator = gpt.with_structured_output(FeedbackEvaluation)
         
         user_prompt = f"""
         Original Task Description: {state['task_description']}
@@ -155,7 +155,7 @@ class SupervisorAgent:
             }   
          
     def plan_and_check_queries(self, state: SupervisorState):
-        structured_llm = llm.with_structured_output(Text2SQLRequests, method="json_mode")
+        structured_llm = gpt.with_structured_output(Text2SQLRequests, method="json_mode")
 
         history_msgs = "\n".join([msg.content for msg in state.get('messages', [])])
 
@@ -209,7 +209,7 @@ class SupervisorAgent:
         extraction_input = f"\n\nHuman feedback:\n{correction_notes}"
 
         try:
-            response = llm.invoke([
+            response = gpt.invoke([
                 SystemMessage(content=LESSON_EXTRACTOR_PROMPT),
                 HumanMessage(content=extraction_input)
             ])
@@ -222,7 +222,7 @@ class SupervisorAgent:
             similar = self.memory.recall_with_ids(candidate_lesson, k=3)
             similar_block = "\n".join(f"[{item['id']}] {item['lesson']}" for item in similar) or "(none)"
             
-            reconciler = llm.with_structured_output(MemoryReconciliation)
+            reconciler = gpt.with_structured_output(MemoryReconciliation)
             decision = reconciler.invoke([
                 SystemMessage(content=MEMORY_RECONCILER_PROMPT),
                 HumanMessage(content=(

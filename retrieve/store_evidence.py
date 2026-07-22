@@ -1,7 +1,7 @@
 import os
 import json
 from qdrant_client.http import models
-from models import embed_model, client
+from models import get_embedding, client
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -27,7 +27,7 @@ COLLECTION_NAME = "telco_domain_evidence"
 
 if not client.collection_exists(COLLECTION_NAME):
     print("⏳ Determining vector size from Ollama...")
-    dummy_vector = embed_model.embed_query("test")
+    dummy_vector = get_embedding("test")
     vector_size = len(dummy_vector)
     
     client.create_collection(
@@ -42,7 +42,7 @@ if not client.collection_exists(COLLECTION_NAME):
 points = []
 
 for idx, fact in enumerate(domain_knowledge):
-    vector = embed_model.embed_query(fact)
+    vector = get_embedding(fact)
     
     points.append(
         models.PointStruct(
@@ -73,7 +73,7 @@ else:
 test_question = "Churn"
 print(f"\n🔍 Testing Retrieval for: '{test_question}'")
 
-query_vector = embed_model.embed_query(test_question)
+query_vector = get_embedding(test_question)
 
 response = client.query_points(
     collection_name=COLLECTION_NAME,

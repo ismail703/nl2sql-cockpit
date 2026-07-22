@@ -3,10 +3,9 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from qdrant_client import QdrantClient
 from qdrant_client.http import models
 
-from models import get_embedding, client
+from models import embed_model, client
 
 MEMORY_JSON_PATH = "agent_memory.json"
 
@@ -20,7 +19,7 @@ class LongTermMemory:
         self.collection_name = "agent_lessons"
 
         if not client.collection_exists(self.collection_name):
-            dummy_vector = get_embedding("test")
+            dummy_vector = embed_model.embed_query("test")
 
             client.create_collection(
                 collection_name=self.collection_name,
@@ -84,7 +83,7 @@ class LongTermMemory:
             **(metadata or {}),
         }
 
-        vector = get_embedding(lesson)
+        vector = embed_model.embed_query(lesson)
 
         client.upsert(
             collection_name=self.collection_name,
@@ -101,7 +100,7 @@ class LongTermMemory:
 
     def recall(self, query: str, k: int = 3) -> str:
         try:
-            query_vector = get_embedding(query)
+            query_vector = embed_model.embed_query(query)
 
             response = client.query_points(
                 collection_name=self.collection_name,
@@ -131,7 +130,7 @@ class LongTermMemory:
         score_threshold: Optional[float] = 0.6,
     ) -> List[Dict[str, Any]]:
         try:
-            query_vector = get_embedding(query)
+            query_vector = embed_model.embed_query(query)
 
             response = client.query_points(
                 collection_name=self.collection_name,
@@ -186,7 +185,7 @@ class LongTermMemory:
                 "timestamp": timestamp,
             }
 
-            vector = get_embedding(lesson)
+            vector = embed_model.embed_query(lesson)
 
             client.upsert(
                 collection_name=self.collection_name,
@@ -226,7 +225,7 @@ class LongTermMemory:
 
     def clear_all(self) -> bool:
             try:
-                dummy_vector = get_embedding("test")
+                dummy_vector = embed_model.embed_query("test")
 
                 client.delete_collection(collection_name=self.collection_name)
                 client.create_collection(

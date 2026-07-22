@@ -2,7 +2,7 @@ import json
 import os
 import requests
 import uuid
-from models import embed_model, client
+from models import get_embedding, client
 from qdrant_client.http import models
 from pathlib import Path
 
@@ -26,7 +26,7 @@ COLLECTION_NAME = "telco_db_schema"
 
 if not client.collection_exists(COLLECTION_NAME):
     print("⏳ Determining vector size from Ollama...")
-    dummy_vector = embed_model.embed_query("test")
+    dummy_vector = get_embedding("test")
     vector_size = len(dummy_vector)
     
     client.create_collection(
@@ -69,7 +69,7 @@ for table in tables_json:
         f"Description: {description}. "
         f"Columns: {col_details}. "
     )
-    vector = embed_model.embed_query(text_content)
+    vector = get_embedding(text_content)
 
     point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, table_name))
 
@@ -104,7 +104,7 @@ print(f"✅ Successfully stored {len(points)} tables in Vector DB.")
 query_text = "Customers activation"
 print(f"\n🔍 Testing Query: '{query_text}'")
 
-query_vector = embed_model.embed_query(query_text)
+query_vector = get_embedding(query_text)
 
 response = client.query_points(
     collection_name=COLLECTION_NAME,
